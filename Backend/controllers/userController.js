@@ -73,3 +73,9 @@ export const login = async (req, res) => {
         return res.status(500).json({ message: error.message });
     }
 }
+
+export const logout = async (req, res) => {
+    res.clearCookie("token");
+
+    return res.status(201).json({ message: "User deleted successfully" });
+}
