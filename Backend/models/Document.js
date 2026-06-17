@@ -19,10 +19,17 @@ const documentSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    extractedText: {
-        type: [String],
-        default: [],
-    }
+    status: {
+        type: String,
+        enum:["processing", "ready", "failed"],
+        default: "processing",
+    },
+    extractedText: [
+        {
+            pageNumber: Number,
+            content: String,
+        }
+    ]
 }, { timestamps: true })
 
 export const Document = mongoose.model("Document", documentSchema);

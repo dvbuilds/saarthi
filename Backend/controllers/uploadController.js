@@ -1,5 +1,6 @@
 import cloudinary from "../config/cloudinary.js";
 import { Document } from "../models/Document.js";
+import { extractPdfText } from "../services/extractPdfText.js";
 
 export const uploadDocument = async (req, res) => {
     try {
@@ -25,7 +26,22 @@ export const uploadDocument = async (req, res) => {
                     cloudinaryId: result.public_id,
                     uploadedBy: req.user._id,
 
-                })
+                });
+
+                try {
+                    const pages = await extractPdfText(result.secure_url);
+
+                    document.extractedText = pages;
+
+                    document.status = "ready";
+                    await document.save();
+                } catch (error) {
+                
+                    console.log("PDF Extraction Error:", error);
+                    
+                    document.status = "failed";
+                    await document.save();
+                }
 
                 return res.status(201).json({ message: "Document Uploaded Successfully" });
             }
