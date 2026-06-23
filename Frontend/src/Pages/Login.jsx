@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import API from "../services/api.js";
 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24">
@@ -23,11 +24,9 @@ export default function LoginPage() {
     if (!form.email || !form.password) { setError("Please fill in all fields."); return; }
     setLoading(true); setError("");
     try {
-      const res  = await fetch("/api/users/login", { method:"POST", headers:{"Content-Type":"application/json"}, credentials:"include", body: JSON.stringify(form) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Login failed");
+      const { data } = await API.post("/users/login", form);
       navigate("/dashboard");
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.response?.data?.message || err.message); }
     finally { setLoading(false); }
   };
 

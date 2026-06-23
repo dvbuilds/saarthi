@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import API from "../services/api.js";
 
 const TOOLS = [
-  { id: "chat",       icon: "💬", title: "Chat with PDF",  desc: "Ask anything, get answers sourced from your document.", bg: "bg-blue-50"   },
-  { id: "quiz",        icon: "📝", title: "Smart Quiz",     desc: "Auto-generate MCQs from any chapter.",                   bg: "bg-amber-50"  },
-  { id: "flashcards",  icon: "🃏", title: "Flashcards",     desc: "Key concepts distilled into bite-sized cards.",          bg: "bg-green-50"  },
-  { id: "summary",     icon: "📊", title: "Summary",        desc: "Cut through dense text in under 10 seconds.",            bg: "bg-purple-50" },
-  { id: "notes",       icon: "✨", title: "Generate Notes", desc: "Turn raw PDF text into structured, topic-wise notes.",   bg: "bg-orange-50" },
+  { id: "chat", icon: "💬", title: "Chat with PDF", desc: "Ask anything, get answers sourced from your document.", bg: "bg-blue-50" },
+  { id: "quiz", icon: "📝", title: "Smart Quiz", desc: "Auto-generate MCQs from any chapter.", bg: "bg-amber-50" },
+  { id: "flashcards", icon: "🃏", title: "Flashcards", desc: "Key concepts distilled into bite-sized cards.", bg: "bg-green-50" },
+  { id: "summary", icon: "📊", title: "Summary", desc: "Cut through dense text in under 10 seconds.", bg: "bg-purple-50" },
+  { id: "notes", icon: "✨", title: "Generate Notes", desc: "Turn raw PDF text into structured, topic-wise notes.", bg: "bg-orange-50" },
 ];
 
 const formatDate = (iso) => {
@@ -18,14 +19,14 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  const [documents, setDocuments]   = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
-  const [uploading, setUploading]   = useState(false);
-  const [dragOver, setDragOver]     = useState(false);
-  const [search, setSearch]         = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [search, setSearch] = useState("");
   const [selectedDocId, setSelectedDocId] = useState(null);
-  const [activeToolId, setActiveToolId]   = useState(null);
-  const [toast, setToast]           = useState(null);
+  const [activeToolId, setActiveToolId] = useState(null);
+  const [toast, setToast] = useState(null);
 
   const selectedDoc = documents.find(d => d._id === selectedDocId) || null;
 
@@ -44,13 +45,11 @@ export default function DashboardPage() {
   const fetchDocuments = async () => {
     setLoadingDocs(true);
     try {
-      const res = await fetch("/api/upload", { credentials: "include" });
-      if (res.status === 401) { navigate("/login"); return; }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Couldn't load your documents.");
+      const { data } = await API.get("/upload");
       setDocuments(data.documents || []);
     } catch (err) {
-      setToast({ type: "error", msg: err.message || "Couldn't load your documents." });
+      if (err.response?.status === 401) { navigate("/login"); return; }
+      setToast({ type: "error", msg: err.response?.data?.message || err.message });
     } finally {
       setLoadingDocs(false);
     }
@@ -66,13 +65,11 @@ export default function DashboardPage() {
     try {
       const formData = new FormData();
       formData.append("pdf", file);
-      const res = await fetch("/api/upload", { method: "POST", credentials: "include", body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed.");
+      const { data } = await API.post("/upload", formData);
       setToast({ type: "success", msg: `"${file.name}" uploaded successfully.` });
       fetchDocuments();
     } catch (err) {
-      setToast({ type: "error", msg: err.message || "Upload failed." });
+      setToast({ type: "error", msg: err.response?.data?.message || "Upload failed." });
     } finally {
       setUploading(false);
     }
@@ -93,9 +90,7 @@ export default function DashboardPage() {
     e.stopPropagation();
     if (!window.confirm(`Delete "${doc.fileName}"? This can't be undone.`)) return;
     try {
-      const res = await fetch(`/api/upload/${doc._id}`, { method: "DELETE", credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Couldn't delete file.");
+      await API.delete(`/upload/${doc._id}`);
       setDocuments(prev => prev.filter(d => d._id !== doc._id));
       if (selectedDocId === doc._id) setSelectedDocId(null);
       setToast({ type: "success", msg: `"${doc.fileName}" deleted.` });
@@ -105,7 +100,11 @@ export default function DashboardPage() {
   };
 
   const handleLogout = async () => {
-    try { await fetch("/api/users/logout", { method: "DELETE", credentials: "include" }); } catch { /* noop */ }
+    try {
+      await API.delete("/users/logout");
+    } catch { /* noop */ }
+    setDocuments([]);
+    setSelectedDocId(null);
     navigate("/login");
   };
 
@@ -117,6 +116,14 @@ export default function DashboardPage() {
     }
     setToast({ type: "info", msg: `Opening ${tool.title} for "${selectedDoc.fileName}" — coming soon!` });
   };
+
+  if (loadingDocs) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-offwhite">
+        <div className="w-10 h-10 rounded-full border-4 border-blue/20 border-t-blue animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-offwhite dot-bg">
@@ -136,7 +143,7 @@ export default function DashboardPage() {
         </div>
 
         <button onClick={handleLogout}
-                className="px-5 py-2 rounded-[10px] border border-slate-200 font-syne font-semibold text-[14px] text-navy bg-white hover:border-red-300 hover:text-red-600 transition-all duration-200">
+          className="px-5 py-2 rounded-[10px] border border-slate-200 font-syne font-semibold text-[14px] text-navy bg-white hover:border-red-300 hover:text-red-600 transition-all duration-200">
           Logout
         </button>
       </nav>
@@ -160,7 +167,7 @@ export default function DashboardPage() {
             />
             {search && (
               <button onClick={() => setSearch("")}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-slate-400 hover:text-slate-600 text-sm">
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-slate-400 hover:text-slate-600 text-sm">
                 ✕
               </button>
             )}
@@ -183,7 +190,7 @@ export default function DashboardPage() {
                   Working on <strong className="font-semibold">{selectedDoc.fileName}</strong>
                 </span>
                 <button onClick={() => setSelectedDocId(null)}
-                        className="ml-auto shrink-0 bg-transparent border-none cursor-pointer text-blue-400 hover:text-blue-700 text-sm">
+                  className="ml-auto shrink-0 bg-transparent border-none cursor-pointer text-blue-400 hover:text-blue-700 text-sm">
                   ✕
                 </button>
               </div>
@@ -199,10 +206,10 @@ export default function DashboardPage() {
                 const active = activeToolId === t.id && selectedDoc;
                 return (
                   <button key={t.id} onClick={() => handleToolClick(t)}
-                          className={`group w-full flex items-center gap-4 text-left bg-white rounded-2xl p-5 border-[1.5px] transition-all duration-250 cursor-pointer
+                    className={`group w-full flex items-center gap-4 text-left bg-white rounded-2xl p-5 border-[1.5px] transition-all duration-250 cursor-pointer
                             ${active
-                              ? "border-blue shadow-[0_12px_32px_rgba(37,99,235,0.14)] -translate-y-0.5"
-                              : "border-slate-100 hover:border-blue-100 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(10,22,40,0.08)]"}`}>
+                        ? "border-blue shadow-[0_12px_32px_rgba(37,99,235,0.14)] -translate-y-0.5"
+                        : "border-slate-100 hover:border-blue-100 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(10,22,40,0.08)]"}`}>
                     <div className={`w-12 h-12 rounded-xl ${t.bg} flex items-center justify-center text-xl shrink-0`}>{t.icon}</div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-syne font-bold text-[15px] text-navy">{t.title}</h3>
@@ -226,7 +233,7 @@ export default function DashboardPage() {
               </div>
 
               <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                      className={`shrink-0 px-5 py-3 rounded-xl bg-gradient-to-br from-blue to-blue-dark font-syne font-semibold text-[14px] text-white border-none cursor-pointer flex items-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.28)] hover:-translate-y-0.5 hover:shadow-[0_8px_22px_rgba(37,99,235,0.38)] transition-all duration-200 ${uploading ? "opacity-70 pointer-events-none" : ""}`}>
+                className={`shrink-0 px-5 py-3 rounded-xl bg-gradient-to-br from-blue to-blue-dark font-syne font-semibold text-[14px] text-white border-none cursor-pointer flex items-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.28)] hover:-translate-y-0.5 hover:shadow-[0_8px_22px_rgba(37,99,235,0.38)] transition-all duration-200 ${uploading ? "opacity-70 pointer-events-none" : ""}`}>
                 {uploading
                   ? <><div className="w-[16px] h-[16px] rounded-full border-2 border-white/30 border-t-white animate-spin-slow" />Uploading…</>
                   : <>+ Upload PDF</>}
@@ -252,7 +259,7 @@ export default function DashboardPage() {
                     Upload your first PDF — or drag one in here — to unlock chat, quizzes, flashcards, and more.
                   </p>
                   <button onClick={() => fileInputRef.current?.click()}
-                          className="px-6 py-3 rounded-xl bg-gradient-to-br from-blue to-blue-dark font-syne font-semibold text-[14px] text-white border-none cursor-pointer shadow-[0_4px_14px_rgba(37,99,235,0.28)] hover:-translate-y-0.5 transition-all duration-200">
+                    className="px-6 py-3 rounded-xl bg-gradient-to-br from-blue to-blue-dark font-syne font-semibold text-[14px] text-white border-none cursor-pointer shadow-[0_4px_14px_rgba(37,99,235,0.28)] hover:-translate-y-0.5 transition-all duration-200">
                     Upload a PDF
                   </button>
                 </div>
@@ -268,10 +275,10 @@ export default function DashboardPage() {
                     const selected = selectedDocId === doc._id;
                     return (
                       <div key={doc._id} onClick={() => setSelectedDocId(doc._id)}
-                           className={`relative group cursor-pointer bg-white rounded-2xl p-5 border-[1.5px] transition-all duration-250
+                        className={`relative group cursor-pointer bg-white rounded-2xl p-5 border-[1.5px] transition-all duration-250
                              ${selected
-                               ? "border-blue ring-4 ring-blue/10"
-                               : "border-slate-100 hover:border-blue-100 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(10,22,40,0.08)]"}`}>
+                            ? "border-blue ring-4 ring-blue/10"
+                            : "border-slate-100 hover:border-blue-100 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(10,22,40,0.08)]"}`}>
                         <div className="flex items-start gap-3">
                           <div className="w-10 h-12 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-base leading-none shrink-0">📄</div>
                           <div className="flex-1 min-w-0">
@@ -282,7 +289,7 @@ export default function DashboardPage() {
                         </div>
 
                         <button onClick={(e) => handleDelete(doc, e)}
-                                className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-white border border-slate-100 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[13px] text-slate-400 hover:text-red-500 hover:border-red-200 transition-all duration-200">
+                          className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-white border border-slate-100 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[13px] text-slate-400 hover:text-red-500 hover:border-red-200 transition-all duration-200">
                           🗑
                         </button>
                       </div>
@@ -299,9 +306,9 @@ export default function DashboardPage() {
       {toast && (
         <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-[0_12px_32px_rgba(10,22,40,0.18)] border font-inter text-[14px] max-w-[360px] animate-fade-up
           ${toast.type === "success" ? "bg-green-50 border-green-200 text-green-700" :
-            toast.type === "error"   ? "bg-red-50 border-red-200 text-red-700" :
-            toast.type === "warn"    ? "bg-amber-50 border-amber-200 text-amber-700" :
-            "bg-blue-50 border-blue-200 text-blue-700"}`}>
+            toast.type === "error" ? "bg-red-50 border-red-200 text-red-700" :
+              toast.type === "warn" ? "bg-amber-50 border-amber-200 text-amber-700" :
+                "bg-blue-50 border-blue-200 text-blue-700"}`}>
           <span className="shrink-0">{toast.type === "success" ? "✅" : toast.type === "error" ? "⚠️" : toast.type === "warn" ? "👉" : "✨"}</span>
           <span>{toast.msg}</span>
         </div>
