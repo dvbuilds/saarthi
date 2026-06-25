@@ -185,7 +185,7 @@ export default function ChatPage() {
 
     try {
       // ✅ FIX: docId is a URL param, message + history go in body
-      const res = await API.post(`/chat/${id}`, {
+      const res = await API.post(`/chat/${docId}`, {
         message: text,
         history,
       });

@@ -4,6 +4,6 @@ import { protect } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.post('/', protect, chatWithPDF);
+router.post('/:id', protect, chatWithPDF);
 
 export default router;
