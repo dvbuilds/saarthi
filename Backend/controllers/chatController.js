@@ -14,7 +14,7 @@ export const chatWithPDF = async (req, res) => {
 
         const document = await Document.findOne({
             _id: docId,
-            uploadedBy: req.user.userId,
+            uploadedBy: req.user._id,
         });
 
         if (!document) {

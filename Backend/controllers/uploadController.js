@@ -70,7 +70,10 @@ export const fetchAllDocuments = async (req, res) => {
 
 export const fetchDocumentById = async (req, res) => {
     try {
-        const document = await Document.findById(req.params.id);
+        const document = await Document.findOne({
+            _id: req.params.id,
+            uploadedBy: req.user._id,
+        });
 
         if (!document) {
             return res.status(404).json({ message: "File Not Found" });

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../services/api";
 
-// ── icons (inline SVGs, zero deps) ──────────────────────────────────────────
+// ── icons ────────────────────────────────────────────────────────────────────
 const SendIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
     <line x1="22" y1="2" x2="11" y2="13" />
@@ -27,13 +27,7 @@ const SpinnerIcon = () => (
   </svg>
 );
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-function parsePageRef(text) {
-  // detect "page N" or "Page N" references in AI response
-  const match = text.match(/page\s+(\d+)/i);
-  return match ? parseInt(match[1], 10) : null;
-}
-
+// ── Message bubble ────────────────────────────────────────────────────────────
 function MessageBubble({ msg }) {
   const isUser = msg.role === "user";
   return (
@@ -56,6 +50,7 @@ function MessageBubble({ msg }) {
   );
 }
 
+// ── Typing indicator ──────────────────────────────────────────────────────────
 function TypingIndicator() {
   return (
     <div className="flex gap-2 justify-start">
@@ -71,63 +66,29 @@ function TypingIndicator() {
   );
 }
 
-// ── PDF Viewer ───────────────────────────────────────────────────────────────
-function PDFViewer({ pages, activePage }) {
-  const pageRefs = useRef({});
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    if (activePage && pageRefs.current[activePage]) {
-      pageRefs.current[activePage].scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [activePage]);
-
-  if (!pages || pages.length === 0) {
+// ── PDF Viewer — renders actual PDF via iframe ────────────────────────────────
+function PDFViewer({ fileUrl, fileName }) {
+  if (!fileUrl) {
     return (
       <div className="h-full flex items-center justify-center text-slate-500 text-sm">
         <div className="text-center space-y-2">
           <BookIcon />
-          <p>No content extracted</p>
+          <p>No PDF available</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto px-6 py-6 space-y-6 scroll-smooth">
-      {pages.map((page) => (
-        <div
-          key={page.pageNumber}
-          ref={(el) => (pageRefs.current[page.pageNumber] = el)}
-          className={`rounded-xl border transition-all duration-500 ${
-            activePage === page.pageNumber
-              ? "border-indigo-500/60 bg-indigo-500/5 shadow-[0_0_0_1px_rgba(99,102,241,0.3)]"
-              : "border-white/8 bg-white/[0.03]"
-          }`}
-        >
-          {/* page header */}
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/8">
-            <span
-              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                activePage === page.pageNumber
-                  ? "bg-indigo-500/30 text-indigo-300"
-                  : "bg-white/8 text-slate-500"
-              }`}
-            >
-              Page {page.pageNumber}
-            </span>
-          </div>
-          {/* page content */}
-          <div className="px-4 py-4 text-sm text-slate-300 leading-7 font-mono whitespace-pre-wrap break-words">
-            {page.content}
-          </div>
-        </div>
-      ))}
-    </div>
+    <iframe
+      src={fileUrl}
+      title={fileName || "PDF Document"}
+      className="w-full h-full border-none"
+    />
   );
 }
 
-// ── Main Component ───────────────────────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function ChatPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -144,7 +105,6 @@ export default function ChatPage() {
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [activePage, setActivePage] = useState(null);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -178,25 +138,20 @@ export default function ChatPage() {
     setInput("");
     setSending(true);
 
-    // build history for context (exclude the greeting)
+    // build history (exclude greeting, keep last 10 turns)
     const history = messages
       .slice(1)
+      .slice(-10)
       .map((m) => ({ role: m.role, content: m.content }));
 
     try {
-      // ✅ FIX: docId is a URL param, message + history go in body
       const res = await API.post(`/chat/${id}`, {
-        docId: id,
         message: text,
         history,
       });
 
       const reply = res.data.reply || res.data.message || "No response.";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-
-      // highlight referenced page if AI mentions one
-      const page = parsePageRef(reply);
-      if (page) setActivePage(page);
     } catch (err) {
       const errMsg = err.response?.data?.message || err.message || "Something went wrong.";
       setMessages((prev) => [
@@ -216,7 +171,7 @@ export default function ChatPage() {
     }
   };
 
-  // ── Loading / Error states ───────────────────────────────────────────────
+  // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="h-screen bg-[#0d0f14] flex items-center justify-center">
@@ -228,6 +183,7 @@ export default function ChatPage() {
     );
   }
 
+  // ── Error state ───────────────────────────────────────────────────────────
   if (error) {
     return (
       <div className="h-screen bg-[#0d0f14] flex items-center justify-center">
@@ -244,9 +200,7 @@ export default function ChatPage() {
     );
   }
 
-  const pages = doc?.extractedText || [];
-
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="h-screen bg-[#0d0f14] text-white flex flex-col overflow-hidden">
 
@@ -263,17 +217,12 @@ export default function ChatPage() {
         <div className="flex items-center gap-2 min-w-0">
           <BookIcon />
           <span className="text-sm font-medium text-slate-200 truncate">
-            {doc?.originalName || doc?.title || "Document"}
+            {doc?.fileName || "Document"}
           </span>
         </div>
-        {activePage && (
-          <span className="ml-auto text-xs px-2 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300">
-            Viewing page {activePage}
-          </span>
-        )}
       </header>
 
-      {/* ── Main split layout ── */}
+      {/* ── Split layout ── */}
       <div className="flex flex-1 min-h-0">
 
         {/* LEFT — Chat panel */}
@@ -316,15 +265,15 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* RIGHT — PDF viewer */}
+        {/* RIGHT — Actual PDF rendered via iframe */}
         <div className="flex-1 flex flex-col min-w-0 bg-[#0a0c10]">
           <div className="flex items-center gap-2 px-5 py-2.5 border-b border-white/6 flex-shrink-0">
             <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
-              Document · {pages.length} page{pages.length !== 1 ? "s" : ""}
+              Document
             </span>
           </div>
           <div className="flex-1 min-h-0">
-            <PDFViewer pages={pages} activePage={activePage} />
+            <PDFViewer fileUrl={doc?.fileUrl} fileName={doc?.fileName} />
           </div>
         </div>
 

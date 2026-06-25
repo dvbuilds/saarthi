@@ -6,8 +6,8 @@ import {protect} from "../middlewares/authMiddleware.js";
 const router = express.Router();
 
 router.post("/", protect, upload.single("pdf"), uploadDocument );
-router.get("/:id",protect, fetchDocumentById);
 router.get("/",protect, fetchAllDocuments);
+router.get("/:id",protect, fetchDocumentById);
 router.delete("/:id",protect, deleteDocument);
 
 export default router;
