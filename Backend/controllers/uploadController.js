@@ -14,6 +14,7 @@ export const uploadDocument = async (req, res) => {
             {
                 resource_type: "raw",
                 folder: "saarthi",
+                flags: "attachment:false", // ← add this
             },
             async (error, result) => {
                 if (error) {
@@ -36,9 +37,9 @@ export const uploadDocument = async (req, res) => {
                     document.status = "ready";
                     await document.save();
                 } catch (error) {
-                
+
                     console.log("PDF Extraction Error:", error);
-                    
+
                     document.status = "failed";
                     await document.save();
                 }
@@ -110,7 +111,7 @@ export const deleteDocument = async (req, res) => {
 
         await cloudinary.uploader.destroy(
             document.cloudinaryId,
-            { resource_type: "raw"}
+            { resource_type: "raw" }
 
         );
 
