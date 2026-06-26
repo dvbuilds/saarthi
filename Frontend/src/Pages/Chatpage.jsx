@@ -272,7 +272,6 @@ export default function ChatPage() {
                         </span>
                     </div>
                     <div className="flex-1 min-h-0">
-                        // In ChatPage.jsx, where you call PDFViewer:
                         <PDFViewer
                             fileUrl={doc?.fileUrl?.replace('/upload/', '/upload/fl_attachment:false/')}
                             fileName={doc?.fileName}
