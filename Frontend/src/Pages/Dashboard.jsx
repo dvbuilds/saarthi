@@ -118,6 +118,12 @@ export default function DashboardPage() {
       navigate(`/chat/${selectedDoc._id}`, {state : { doc: selectedDoc } });
       return;
     }
+
+    else if(tool.id === 'quiz') {
+      navigate(`quiz/${selectedDoc._id}`);
+      return;
+    }
+
     setToast({ type: "info", msg: `Opening ${tool.title} for "${selectedDoc.fileName}" — coming soon!` });
   };
 

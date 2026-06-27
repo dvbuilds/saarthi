@@ -5,6 +5,7 @@ import Login from './Pages/Login.jsx';
 import Register from './Pages/Register.jsx';
 import Dashboard from './Pages/Dashboard.jsx';
 import ChatPage from './Pages/Chatpage.jsx';
+import QuizPage from './Pages/QuizPage.jsx';
 
 function App() {
   
@@ -16,6 +17,7 @@ function App() {
       <Route path='/register' element={<Register />} />
       <Route path='/dashboard' element={<Dashboard />} />
       <Route path="/chat/:id" element={<ChatPage />} />
+      <Route path='/quiz/:id' element={<QuizPage />} />
     </Routes>
 
   )
