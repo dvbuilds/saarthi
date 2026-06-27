@@ -21,26 +21,25 @@ export const generateQuiz = async (req, res) => {
             return res.status(400).json({ message: "File is still processing" });
         }
 
-        const allPages = document.extractedText
-            .sort((a, b) => a.pageNumber - b.pageNumber)
-
-        const totalPages = allPages.length;
+        const allPages = [...document.extractedText]
+            .sort((a, b) => a.pageNumber - b.pageNumber);
 
         const chunkSize = 3;
-        const chunks =[];
-        for(let i = 0; i < allPages.length; i+=chunkSize) {
-            chunks.push(slice(i, i+chunkSize))
+        const chunks = [];
+        for (let i = 0; i < allPages.length; i += chunkSize) {
+            chunks.push(allPages.slice(i, i + chunkSize)); // ✅ allPages.slice not just slice
         }
 
         const questionsPerChunk = Math.max(1, Math.ceil(count / chunks.length));
         const allQuestions = [];
-        for( chunk of chunks) {
-            const pdfContext = chunk
-            .map(p => `[Page ${p.pageNumber}]\n${p.content.slice(0, 800)}`)
-            .join("\n\n");
-        }
 
-        const prompt = `You are a quiz generator. Based on the excerpt below, generate exactly ${questionsPerChunk} multiple choice questions.
+        for (const chunk of chunks) { // ✅ const chunk, not just chunk
+            const pdfContext = chunk
+                .map(p => `[Page ${p.pageNumber}]\n${p.content.slice(0, 800)}`)
+                .join("\n\n");
+
+            // ✅ prompt and completion must be INSIDE the loop
+            const prompt = `You are a quiz generator. Based on the excerpt below, generate exactly ${questionsPerChunk} multiple choice questions.
 
 Rules:
 - Each question must have exactly 4 options (A, B, C, D)
@@ -61,26 +60,28 @@ Respond ONLY with a valid JSON array, no markdown, no extra text:
 DOCUMENT EXCERPT:
 ${pdfContext}`;
 
-        const completion = await groq.chat.completions.create({
-            model: "llama-3.1-8b-instant",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 4096,
-        });
+            const completion = await groq.chat.completions.create({
+                model: "llama-3.1-8b-instant",
+                messages: [{ role: "user", content: prompt }],
+                max_tokens: 1024, // ✅ 1024 not 4096, keeps each chunk small
+            });
 
-        const raw = completion.choices[0].message.content;
-        const clean = raw.replace(/```json|```/g, "").trim();
-        
-        try {
-            const questions = JSON.parse(clean);
-            allQuestions.push(...questions);
-        } catch {
+            const raw = completion.choices[0].message.content;
+            const clean = raw.replace(/```json|```/g, "").trim();
+
+            try {
+                const questions = JSON.parse(clean);
+                allQuestions.push(...questions);
+            } catch {
+                // skip bad chunk
+            }
         }
 
         const shuffled = allQuestions
             .sort(() => Math.random() - 0.5)
             .slice(0, count);
 
-        return res.status(200).json({ questions });
+        return res.status(200).json({ questions: shuffled }); // ✅ shuffled not questions
     } catch (error) {
         return res.status(500).json({ message: error.message });
     }
