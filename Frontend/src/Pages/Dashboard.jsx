@@ -124,6 +124,11 @@ export default function DashboardPage() {
       return;
     }
 
+    else if(tool.id === 'flashcard') {
+      navigate(`/flashcard/${selectedDoc._id}`);
+      return;
+    }
+
     setToast({ type: "info", msg: `Opening ${tool.title} for "${selectedDoc.fileName}" — coming soon!` });
   };
 
