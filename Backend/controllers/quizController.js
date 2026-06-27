@@ -17,7 +17,7 @@ export const generateQuiz = async (req, res) => {
             return res.status(404).json({ message: "File not found" });
         }
 
-        if (document.status === 'ready') {
+        if (document.status !== 'ready') {
             return res.status(400).json({ message: "File is still processing" });
         }
 
@@ -27,8 +27,25 @@ export const generateQuiz = async (req, res) => {
             .join("\n\n");
 
         const prompt = `You are a quiz generator. Based on the document below, generate exactly ${count} multiple choice questions.
-    DOCUMENT: 
-    ${pdfContext}`;
+
+Rules:
+- Each question must have exactly 4 options (A, B, C, D)
+- Only one option is correct
+- Include a brief explanation for why the answer is correct
+- Cover different topics across the document
+
+Respond ONLY with a valid JSON array, no markdown, no extra text:
+[
+  {
+    "question": "Question text here?",
+    "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
+    "answer": "A",
+    "explanation": "Brief explanation why A is correct"
+  }
+]
+
+DOCUMENT:
+${pdfContext}`;
 
         const completion = await groq.chat.completions.create({
             model: "llama-3.1-8b-instant",
