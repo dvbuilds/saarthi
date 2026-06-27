@@ -120,7 +120,7 @@ export default function DashboardPage() {
     }
 
     else if(tool.id === 'quiz') {
-      navigate(`quiz/${selectedDoc._id}`);
+      navigate(`/quiz/${selectedDoc._id}`);
       return;
     }
 
