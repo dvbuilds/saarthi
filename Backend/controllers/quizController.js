@@ -74,7 +74,6 @@ ${pdfContext}`;
             const questions = JSON.parse(clean);
             allQuestions.push(...questions);
         } catch {
-            continue;
         }
 
         const shuffled = allQuestions
