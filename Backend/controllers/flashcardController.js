@@ -17,7 +17,7 @@ export const generateFlashcards = async (req, res) => {
         }
 
         if (document.status !== 'ready') {
-            return res.status(401).json({ message: "Document still processing" });
+            return res.status(400).json({ message: "Document still processing" });
         }
 
         const allPages = [...document.extractedText]
@@ -26,7 +26,7 @@ export const generateFlashcards = async (req, res) => {
         const chunkSize = 3;
         const chunks = [];
         for (let i = 0; i < allPages.length; i += chunkSize) {
-            chunks.push(allPgaes.slice(i, i + chunkSize));
+            chunks.push(allPages.slice(i, i + chunkSize));
         }
 
         const allFlashcards = [];
