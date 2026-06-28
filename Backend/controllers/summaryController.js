@@ -62,9 +62,11 @@ export const generateSummary = async (req, res) => {
             try {
                 const points = JSON.parse(clean);
                 chunkSummaries.push(...points);
-            } catch {
+            } catch(e) {
                 console.log("Failed chunk parse:", clean);
             }
+
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
             return res.status(200).json({ summary: chunkSummaries });
         }
