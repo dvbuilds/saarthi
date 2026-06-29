@@ -20,11 +20,18 @@ export const generateSummary = async (req, res) => {
             return res.status(400).json({ message: "Document still processing" });
         }
 
+
         const allPages = [...document.extractedText]
             .sort((a, b) => a.pageNumber - b.pageNumber);
 
         const chunkSize = 2;
         const chunks = [];
+        for (let i = 0; i < allPages.length; i += chunkSize) {
+            chunks.push(allPages.slice(i, i + chunkSize));
+        }
+
+        const chunkSummaries = [];
+
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
 
@@ -32,7 +39,13 @@ export const generateSummary = async (req, res) => {
                 .map(p => `[Page ${p.pageNumber}]\n${p.content}`)
                 .join("\n\n");
 
-            console.log(`Processing chunk ${i + 1}/${chunks.length}, context length: ${pdfContext.length} chars`);
+            const prompt = `You are a document summarizer. Extract key points from the excerpt below.
+
+Respond ONLY with a valid JSON array of strings, no markdown, no extra text:
+["Point 1", "Point 2", "Point 3"]
+
+DOCUMENT EXCERPT:
+${pdfContext}`;
 
             const completion = await groq.chat.completions.create({
                 model: "llama-3.1-8b-instant",
@@ -41,13 +54,10 @@ export const generateSummary = async (req, res) => {
             });
 
             const raw = completion.choices[0].message.content;
-            console.log(`Chunk ${i + 1} raw response:`, raw.slice(0, 200));
-
             const clean = raw.replace(/```json|```/g, "").trim();
 
             try {
                 const points = JSON.parse(clean);
-                console.log(`Chunk ${i + 1} parsed ${points.length} points`);
                 chunkSummaries.push(...points);
             } catch (e) {
                 console.log(`Chunk ${i + 1} parse FAILED:`, clean.slice(0, 200));
