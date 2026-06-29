@@ -30,20 +30,25 @@ export const generateSummary = async (req, res) => {
             chunks.push(allPages.slice(i, i + chunkSize));
         }
 
+        // Process chunks in parallel batches of 2
+        const batchSize = 2;
         const chunkSummaries = [];
 
-        for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
+        for (let i = 0; i < chunks.length; i += batchSize) {
+            const batch = chunks.slice(i, i + batchSize);
 
-            const pdfContext = chunk
-                .map(p => `[Page ${p.pageNumber}]\n${p.content}`)
-                .join("\n\n");
+            // process this batch in parallel
+            const batchResults = await Promise.all(
+                batch.map(async (chunk) => {
+                    const pdfContext = chunk
+                        .map(p => `[Page ${p.pageNumber}]\n${p.content}`)
+                        .join("\n\n");
 
-            const prompt = `You are a document summarizer. Extract key points from the excerpt below.
+                    const prompt = `You are a document summarizer. Extract key points from the excerpt below.
 
 STRICT RULES:
 - Each point must be a complete informative sentence with actual content
-- Do NOT include headings, titles, or topic names as points (e.g. "Data Communication" alone is not a valid point)
+- Do NOT include headings, titles, or topic names as points
 - Each point must explain something, not just name something
 - Minimum 10 words per point
 
@@ -53,23 +58,27 @@ Respond ONLY with a valid JSON array of strings, no markdown, no extra text:
 DOCUMENT EXCERPT:
 ${pdfContext}`;
 
-            const completion = await groq.chat.completions.create({
-                model: "llama-3.1-8b-instant",
-                messages: [{ role: "user", content: prompt }],
-                max_tokens: 1024,
-            });
+                    try {
+                        const completion = await groq.chat.completions.create({
+                            model: "llama-3.1-8b-instant",
+                            messages: [{ role: "user", content: prompt }],
+                            max_tokens: 1024,
+                        });
 
-            const raw = completion.choices[0].message.content;
-            const clean = raw.replace(/```json|```/g, "").trim();
+                        const raw = completion.choices[0].message.content;
+                        const clean = raw.replace(/```json|```/g, "").trim();
+                        return JSON.parse(clean);
+                    } catch {
+                        return []; // skip failed chunk
+                    }
+                })
+            );
 
-            try {
-                const points = JSON.parse(clean);
-                chunkSummaries.push(...points);
-            } catch (e) {
-                console.log(`Chunk ${i + 1} parse FAILED:`, clean.slice(0, 200));
-            }
+            // flatten batch results
+            batchResults.forEach(points => chunkSummaries.push(...points));
 
-            if (i < chunks.length - 1) {
+            // wait between batches, not between every chunk
+            if (i + batchSize < chunks.length) {
                 await new Promise(resolve => setTimeout(resolve, 1500));
             }
         }
