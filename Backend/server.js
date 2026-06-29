@@ -9,6 +9,7 @@ import chatRoutes from './routes/chatRoutes.js';
 import quizRoutes from './routes/quizRoutes.js';
 import flashcardRoutes from './routes/flashcardRoutes.js';
 import summaryRoutes from './routes/summaryRoutes.js';
+import notesRoutes from './routes/notesRoute.js';
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/flashcards', flashcardRoutes);
 app.use('/api/summary', summaryRoutes);
+app.use("/api/notes", notesRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: "Server is running"});
