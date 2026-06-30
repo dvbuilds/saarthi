@@ -3,6 +3,25 @@ import axios from 'axios';
 import { createWorker } from "tesseract.js";
 import { createCanvas } from "canvas";
 
+// Custom canvas factory required by pdfjs-dist in Node environment
+class NodeCanvasFactory {
+    create(width, height) {
+        const canvas = createCanvas(width, height);
+        const context = canvas.getContext("2d");
+        return { canvas, context };
+    }
+    reset(canvasAndContext, width, height) {
+        canvasAndContext.canvas.width = width;
+        canvasAndContext.canvas.height = height;
+    }
+    destroy(canvasAndContext) {
+        canvasAndContext.canvas.width = 0;
+        canvasAndContext.canvas.height = 0;
+        canvasAndContext.canvas = null;
+        canvasAndContext.context = null;
+    }
+}
+
 export const extractPdfText = async (pdfUrl) => {
 
     const response = await axios.get(pdfUrl, {
@@ -11,8 +30,11 @@ export const extractPdfText = async (pdfUrl) => {
 
     const pdfBuffer = Buffer.from(response.data);
 
+    const canvasFactory = new NodeCanvasFactory();
+
     const pdfDoc = await pdfjsLib.getDocument({
         data: new Uint8Array(pdfBuffer),
+        canvasFactory, // ✅ pass it here
     }).promise;
 
     console.log(`PDF has ${pdfDoc.numPages} pages`);
@@ -48,12 +70,15 @@ export const extractPdfText = async (pdfUrl) => {
             const page = await pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale: 2 });
 
-            const canvas = createCanvas(viewport.width, viewport.height);
-            const ctx = canvas.getContext("2d");
+            const canvasAndContext = canvasFactory.create(viewport.width, viewport.height);
 
-            await page.render({ canvasContext: ctx, viewport }).promise;
+            await page.render({
+                canvasContext: canvasAndContext.context,
+                viewport,
+                canvasFactory, // ✅ pass it here too
+            }).promise;
 
-            const imageBuffer = canvas.toBuffer("image/png");
+            const imageBuffer = canvasAndContext.canvas.toBuffer("image/png");
 
             console.log(`OCR processing page ${pageNum}`);
             const { data: { text } } = await worker.recognize(imageBuffer);
@@ -61,6 +86,8 @@ export const extractPdfText = async (pdfUrl) => {
 
             const pageObj = pages.find(p => p.pageNumber === pageNum);
             pageObj.content = text.trim();
+
+            canvasFactory.destroy(canvasAndContext);
         }
 
         await worker.terminate();
