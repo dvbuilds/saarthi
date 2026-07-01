@@ -1,9 +1,11 @@
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import axios from 'axios';
 import { createWorker } from "tesseract.js";
-import { createCanvas } from "canvas";
+import { createCanvas, Image } from "canvas";
 
-// Custom canvas factory required by pdfjs-dist in Node environment
+// Polyfill browser Image for pdfjs-dist Node rendering
+global.Image = Image;
+
 class NodeCanvasFactory {
     create(width, height) {
         const canvas = createCanvas(width, height);
@@ -29,12 +31,11 @@ export const extractPdfText = async (pdfUrl) => {
     });
 
     const pdfBuffer = Buffer.from(response.data);
-
     const canvasFactory = new NodeCanvasFactory();
 
     const pdfDoc = await pdfjsLib.getDocument({
         data: new Uint8Array(pdfBuffer),
-        canvasFactory, // ✅ pass it here
+        canvasFactory,
     }).promise;
 
     console.log(`PDF has ${pdfDoc.numPages} pages`);
@@ -69,13 +70,12 @@ export const extractPdfText = async (pdfUrl) => {
         for (const pageNum of pagesNeedingOCR) {
             const page = await pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale: 2 });
-
             const canvasAndContext = canvasFactory.create(viewport.width, viewport.height);
 
             await page.render({
                 canvasContext: canvasAndContext.context,
                 viewport,
-                canvasFactory, // ✅ pass it here too
+                canvasFactory,
             }).promise;
 
             const imageBuffer = canvasAndContext.canvas.toBuffer("image/png");
