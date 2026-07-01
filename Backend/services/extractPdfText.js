@@ -1,7 +1,7 @@
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import axios from 'axios';
 import { createWorker } from "tesseract.js";
-import { createCanvas, Image } from "canvas";
+import { createCanvas, Image } from "@napi-rs/canvas";
 
 // Polyfill browser Image for pdfjs-dist Node rendering
 global.Image = Image;
