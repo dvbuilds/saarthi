@@ -1,6 +1,6 @@
-# DocuMind
+# Saarthi
 
-DocuMind is a web application that helps users interact with PDF documents more efficiently. Instead of manually searching through long PDFs, users can upload a document, view it in the browser, and ask questions about its content.
+Saarthi is a web application that helps users interact with PDF documents more efficiently. Instead of manually searching through long PDFs, users can upload a document, view it in the browser, and ask questions about its content.
 
 ## Features
 
