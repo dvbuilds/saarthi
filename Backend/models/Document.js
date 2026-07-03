@@ -43,7 +43,7 @@ const documentSchema = new mongoose.Schema({
             },
             timestamp: {
                 type: Date,
-                default: Dtae.now,
+                default: Date.now,
             }
         }
     ],
