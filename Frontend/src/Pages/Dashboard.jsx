@@ -269,23 +269,33 @@ export default function DashboardPage() {
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
-              className={`rounded-[20px] transition-all duration-200 ${dragOver ? "ring-4 ring-blue/20" : ""}`}
+              className={`rounded-[20px] transition-all duration-200 ${dragOver ? "ring-4 ring-blue/30" : ""}`}
             >
               {loadingDocs ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[1, 2, 3, 4].map(i => <div key={i} className="h-[104px] rounded-2xl bg-slate-100 animate-pulse" />)}
                 </div>
               ) : documents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center text-center py-16 px-6 rounded-2xl border-2 border-dashed border-slate-200 bg-white">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-3xl mb-4">📄</div>
-                  <h3 className="font-syne font-bold text-[17px] text-navy mb-1">No documents yet</h3>
+                <div className={`flex flex-col items-center justify-center text-center py-16 px-6 rounded-2xl border-2 border-dashed transition-all duration-200
+                  ${dragOver ? "border-blue bg-blue-50 scale-[1.02]" : "border-slate-200 bg-white"}`}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4 transition-all duration-200
+                    ${dragOver ? "bg-blue-100 scale-110" : "bg-blue-50"}`}>
+                    {dragOver ? "⬇️" : "📄"}
+                  </div>
+                  <h3 className="font-syne font-bold text-[17px] text-navy mb-1">
+                    {dragOver ? "Drop your PDF here" : "No documents yet"}
+                  </h3>
                   <p className="font-inter text-[14px] text-slate-500 mb-5 max-w-[300px] leading-relaxed">
-                    Upload your first PDF — or drag one in here — to unlock chat, quizzes, flashcards, and more.
+                    {dragOver
+                      ? "Release to upload — we'll take it from there."
+                      : "Upload your first PDF — or drag one in here — to unlock chat, quizzes, flashcards, and more."}
                   </p>
-                  <button onClick={() => fileInputRef.current?.click()}
-                    className="px-6 py-3 rounded-xl bg-gradient-to-br from-blue to-blue-dark font-syne font-semibold text-[14px] text-white border-none cursor-pointer shadow-[0_4px_14px_rgba(37,99,235,0.28)] hover:-translate-y-0.5 transition-all duration-200">
-                    Upload a PDF
-                  </button>
+                  {!dragOver && (
+                    <button onClick={() => fileInputRef.current?.click()}
+                      className="px-6 py-3 rounded-xl bg-gradient-to-br from-blue to-blue-dark font-syne font-semibold text-[14px] text-white border-none cursor-pointer shadow-[0_4px_14px_rgba(37,99,235,0.28)] hover:-translate-y-0.5 transition-all duration-200">
+                      Upload a PDF
+                    </button>
+                  )}
                 </div>
               ) : filteredDocs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center py-16 px-6 rounded-2xl border-2 border-dashed border-slate-200 bg-white">

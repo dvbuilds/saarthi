@@ -139,7 +139,7 @@ export default function LandingPage() {
             </span>
           </h1>
 
-          <p className="font-inter text-[18px] leading-relaxed text-slate-500 max-w-[540px] mx-auto mb-10 animate-fade-up delay-2">
+          <p className="font-inter  text-[18px] leading-relaxed text-slate-500 max-w-[600px] mx-auto mb-10 animate-fade-up delay-2 translate-x-20">
             Turn any PDF into quizzes, flashcards, summaries, notes, and a smart chat — all in one place.
           </p>
 
