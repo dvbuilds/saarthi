@@ -27,6 +27,13 @@ const SpinnerIcon = () => (
     </svg>
 );
 
+// ── greeting shown only when a document has no saved chat history ────────────
+const GREETING_MESSAGE = {
+    role: "assistant",
+    content: "Hi! I've read your document. Ask me anything about it — I'll point you to the right page.",
+    isGreeting: true,
+};
+
 // ── Message bubble ────────────────────────────────────────────────────────────
 function MessageBubble({ msg }) {
     const isUser = msg.role === "user";
@@ -96,12 +103,7 @@ export default function ChatPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
-    const [messages, setMessages] = useState([
-        {
-            role: "assistant",
-            content: "Hi! I've read your document. Ask me anything about it — I'll point you to the right page.",
-        },
-    ]);
+    const [messages, setMessages] = useState([GREETING_MESSAGE]);
     const [input, setInput] = useState("");
     const [sending, setSending] = useState(false);
 
@@ -113,7 +115,19 @@ export default function ChatPage() {
         const fetchDoc = async () => {
             try {
                 const res = await API.get(`/upload/${id}`);
-                setDoc(res.data.document || res.data);
+                const docData = res.data.document || res.data;
+                setDoc(docData);
+
+                if (Array.isArray(docData.chatHistory) && docData.chatHistory.length > 0) {
+                    setMessages(
+                        docData.chatHistory.map((m) => ({
+                            role: m.role,
+                            content: m.content,
+                        }))
+                    );
+                } else {
+                    setMessages([GREETING_MESSAGE]);
+                }
             } catch (err) {
                 setError(err.response?.data?.message || err.message || "Failed to load document");
             } finally {
@@ -139,7 +153,7 @@ export default function ChatPage() {
 
         // build history (exclude greeting, keep last 10 turns)
         const history = messages
-            .slice(1)
+            .filter((m) => !m.isGreeting)
             .slice(-10)
             .map((m) => ({ role: m.role, content: m.content }));
 

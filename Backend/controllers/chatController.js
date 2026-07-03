@@ -55,6 +55,13 @@ export const chatWithPDF = async (req, res) => {
 
         const reply = completion.choices[0].message.content;
 
+        document.chatHistory.push(
+            { role: "user", content: message },
+            { role: "assistant", content: reply },
+        )
+
+        await document.save();
+
         return res.status(200).json({ reply });
     } catch (error) {
         return res.status(500).json({ message: error.message });

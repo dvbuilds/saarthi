@@ -29,7 +29,24 @@ const documentSchema = new mongoose.Schema({
             pageNumber: Number,
             content: String,
         }
-    ]
+    ],
+    chatHistory: [
+        {
+            role: {
+                type: String,
+                enum: ["user", "assistant"],
+                required: true,
+            },
+            content: {
+                type: String,
+                required: true,
+            },
+            timestamp: {
+                type: Date,
+                default: Dtae.now,
+            }
+        }
+    ],
 }, { timestamps: true })
 
 export const Document = mongoose.model("Document", documentSchema);
