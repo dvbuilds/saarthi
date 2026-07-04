@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../utils/getErrorMessage.js";
 
@@ -18,7 +18,13 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) return null;
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleChange = e => { setForm({...form, [e.target.name]: e.target.value}); setError(""); };
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const NAV_LINKS = ["Features", "How It Works", "Testimonials"];
 
@@ -26,6 +27,7 @@ const TESTIMONIALS = [
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [activeFeat, setActiveFeat] = useState(0);
+  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 28);
@@ -37,6 +39,14 @@ export default function LandingPage() {
     const t = setInterval(() => setActiveFeat(p => (p + 1) % FEATURES.length), 2600);
     return () => clearInterval(t);
   }, []);
+
+  // Wait for the auth check to finish before deciding whether to redirect —
+  // otherwise a logged-in user briefly sees the landing page flash before bouncing.
+  if (isLoading) return null;
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="bg-white text-navy overflow-x-hidden">
