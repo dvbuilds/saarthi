@@ -73,6 +73,15 @@ export const login = async (req, res) => {
         user.refreshTokenHash = hashToken(refreshToken);
         await user.save();
 
+        res.clearCookie(
+            "token",
+            {
+                httpOnly: true,
+                secure: true,
+                sameSite: "none"
+            }
+        )
+
         res.cookie("accessToken", accessToken, accessTokenOptions);
         res.cookie("refreshToken", refreshToken, refreshTokenOptions);
 
@@ -143,6 +152,14 @@ export const logout = async (req, res) => {
             }
         }
 
+        res.clearCookie(
+            "token",
+            {
+                httpOnly: true,
+                secure: true,
+                sameSite: "none",
+            }
+        )
         res.clearCookie("accessToken", accessTokenOptions);
         res.clearCookie("refreshToken", refreshTokenOptions);
 
@@ -150,5 +167,20 @@ export const logout = async (req, res) => {
 
     } catch (error) {
         return handleServerError(res, error, "Couldn't log you out. Please try again.");
+    }
+}
+
+export const getCurrentUser = async (req, res) => {
+    try {
+        return res.status(200).json({
+            user: {
+                id: req.user._id,
+                fullName: req.user.fullName,
+                email: req.user.email,
+                avatar: req.user.avatar,
+            }
+        });
+    } catch (error) {
+        return handleServerError(res, error, "Couldn't fetch user details.");
     }
 }
