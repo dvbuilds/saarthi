@@ -1,7 +1,7 @@
 import { User } from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { handleServerError } from "../services/handleServerError.js";
+import { handleServerError } from "../utils/handleServerError.js";
 import { generateAccessToken, generateRefreshToken, hashToken } from "../utils/generateTokens.js";
 
 const accessTokenOptions = {
