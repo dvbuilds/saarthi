@@ -1,6 +1,6 @@
 import './App.css'
 import { Routes, Route, Navigate } from 'react-router-dom';
-import ErrorBoundary from './components/ErrorBoundary.jsx';
+import ErrorBoundary from './Components/ErrorBoundary.jsx';
 import Landing from './Pages/Landing.jsx';
 import Login from './Pages/Login.jsx';
 import Register from './Pages/Register.jsx';
