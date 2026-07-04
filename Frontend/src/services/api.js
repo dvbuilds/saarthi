@@ -8,8 +8,6 @@ const API = axios.create({
 let isRefreshing = false;
 let refreshSubscribers = [];
 
-// Called once refresh succeeds — releases all requests that were queued
-// while the refresh was in-flight.
 const onRefreshed = () => {
     refreshSubscribers.forEach((callback) => callback());
     refreshSubscribers = [];
@@ -24,24 +22,29 @@ API.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        // Not a 401, or we've already retried this request once — give up
         if (error.response?.status !== 401 || originalRequest._retry) {
             return Promise.reject(error);
         }
 
-        // If the refresh call itself returns 401, the session is truly dead —
-        // don't try to refresh again, just log the user out
+        // The refresh call itself failed — session is dead, but don't redirect here.
+        // Let whichever caller invoked this (checkAuth, or a real protected request)
+        // handle it in their own catch block.
         if (originalRequest.url?.includes('/refresh')) {
             isRefreshing = false;
             refreshSubscribers = [];
-            window.location.href = '/login';
+            return Promise.reject(error);
+        }
+
+        // The silent background auth check (/me) failing just means "not logged in" —
+        // this is a normal, expected outcome on every logged-out page load.
+        // No refresh attempt, no redirect. checkAuth's own catch sets user to null.
+        if (originalRequest.url?.includes('/me')) {
             return Promise.reject(error);
         }
 
         originalRequest._retry = true;
 
         if (isRefreshing) {
-            // A refresh is already happening — wait for it, then retry this request
             return new Promise((resolve) => {
                 addRefreshSubscriber(() => {
                     resolve(API(originalRequest));
@@ -52,13 +55,15 @@ API.interceptors.response.use(
         isRefreshing = true;
 
         try {
-            await API.post('/users/refresh');
+            await API.post('/api/users/refresh');
             isRefreshing = false;
             onRefreshed();
             return API(originalRequest);
         } catch (refreshError) {
             isRefreshing = false;
             refreshSubscribers = [];
+            // This IS a genuine protected-request failure (not /me, not /refresh itself) —
+            // a real page tried to do something and the session is dead. Redirect here.
             window.location.href = '/login';
             return Promise.reject(refreshError);
         }
