@@ -1,7 +1,7 @@
 import cloudinary from "../config/cloudinary.js";
 import { Document } from "../models/Document.js";
 import { extractPdfText } from "../services/extractPdfText.js";
-import { handleServerError } from "../services/handleServerError.js";
+import { handleServerError } from "../utils/handleServerError.js";
 
 export const uploadDocument = async (req, res) => {
     try {

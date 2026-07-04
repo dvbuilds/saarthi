@@ -3,10 +3,10 @@ import jwt from "jsonwebtoken";
 
 export const protect = async (req, res, next) => {
     try {
-        const token = req.cookies.token;
+        const token = req.cookies.accessToken;
 
         if (!token) {
-            return res.status(401).json({ message: "Token not found" });
+            return res.status(401).json({ message: "Access token not found" });
         }
 
         const decoded = jwt.verify(
@@ -17,13 +17,15 @@ export const protect = async (req, res, next) => {
         const user = await User.findById(decoded.userId);
 
         if (!user) {
-            return res.status(400).json({ message: "User Not Found" });
+            return res.status(401).json({ message: "User not found" });
         }
 
         req.user = user;
 
         next();
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        // 401, not 500 — an expired/invalid access token is a normal case the
+        // frontend needs to catch and respond to by calling /refresh
+        return res.status(401).json({ message: "Invalid or expired access token" });
     }
 }

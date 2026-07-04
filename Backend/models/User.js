@@ -19,6 +19,9 @@ const userSchema = new mongoose.Schema({
     },
     avatar: {
         type: String,
+    },
+    refreshTokenHash: {
+        type: String,
     }
 
 }, { timestamps: true })

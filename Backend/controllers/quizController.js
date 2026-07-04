@@ -1,6 +1,6 @@
 import { Document } from "../models/Document.js";
 import Groq from 'groq-sdk';
-import { handleServerError } from "../services/handleServerError.js";
+import { handleServerError } from "../utils/handleServerError.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 

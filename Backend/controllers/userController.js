@@ -2,6 +2,21 @@ import { User } from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { handleServerError } from "../services/handleServerError.js";
+import { generateAccessToken, generateRefreshToken, hashToken } from "../utils/generateTokens.js";
+
+const accessTokenOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 15 * 60 * 1000, // 15 min
+};
+
+const refreshTokenOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+};
 
 export const register = async (req, res) => {
     try {
@@ -52,23 +67,14 @@ export const login = async (req, res) => {
             })
         }
 
-        const token = jwt.sign(
-            {
-                userId: user._id,
-                email: user.email,
-            },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "7d",
-            }
-        )
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
 
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-        });
+        user.refreshTokenHash = hashToken(refreshToken);
+        await user.save();
+
+        res.cookie("accessToken", accessToken, accessTokenOptions);
+        res.cookie("refreshToken", refreshToken, refreshTokenOptions);
 
         return res.status(200).json({ message: "user logged-in successfully" });
 
@@ -77,12 +83,72 @@ export const login = async (req, res) => {
     }
 }
 
-export const logout = async (req, res) => {
-    res.clearCookie("token", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-    });
+export const refreshAccessToken = async (req, res) => {
+    try {
+        const refreshToken = req.cookies.refreshToken;
 
-    return res.status(200).json({ message: "User logged out successfully" });
+        if (!refreshToken) {
+            return res.status(401).json({ message: "Refresh token not found" });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        } catch (error) {
+            return res.status(401).json({ message: "Invalid or expired refresh token" });
+        }
+
+        const user = await User.findById(decoded.userId);
+
+        if (!user || !user.refreshTokenHash) {
+            return res.status(401).json({ message: "Session not found, please login again" });
+        }
+
+        const incomingHash = hashToken(refreshToken);
+
+        if (incomingHash !== user.refreshTokenHash) {
+            // token doesn't match what's stored — possible theft/reuse, kill the session
+            user.refreshTokenHash = undefined;
+            await user.save();
+            return res.status(401).json({ message: "Session invalid, please login again" });
+        }
+
+        // rotation: issue a fresh pair every time refresh is used
+        const newAccessToken = generateAccessToken(user);
+        const newRefreshToken = generateRefreshToken(user);
+
+        user.refreshTokenHash = hashToken(newRefreshToken);
+        await user.save();
+
+        res.cookie("accessToken", newAccessToken, accessTokenOptions);
+        res.cookie("refreshToken", newRefreshToken, refreshTokenOptions);
+
+        return res.status(200).json({ message: "Token refreshed successfully" });
+
+    } catch (error) {
+        return handleServerError(res, error, "Couldn't refresh your session. Please login again.");
+    }
+}
+
+export const logout = async (req, res) => {
+    try {
+        const refreshToken = req.cookies.refreshToken;
+
+        if (refreshToken) {
+            try {
+                const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+                await User.findByIdAndUpdate(decoded.userId, { $unset: { refreshTokenHash: 1 } });
+            } catch (error) {
+                // token already invalid/expired — nothing to clean up in DB
+            }
+        }
+
+        res.clearCookie("accessToken", accessTokenOptions);
+        res.clearCookie("refreshToken", refreshTokenOptions);
+
+        return res.status(200).json({ message: "User logged out successfully" });
+
+    } catch (error) {
+        return handleServerError(res, error, "Couldn't log you out. Please try again.");
+    }
 }
