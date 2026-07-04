@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import API from "../services/api.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 const GoogleIcon = () => (
@@ -19,6 +19,7 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const handleChange = e => { setForm({ ...form, [e.target.name]: e.target.value }); setError(""); };
 
@@ -33,13 +34,9 @@ export default function RegisterPage() {
 
     setLoading(true); setError("");
     try {
-      await API.post("/users/register", {
-        fullName: form.fullName,
-        email: form.email,
-        password: form.password,
-      });
+      await register(form.fullName, form.email, form.password);
       setSuccess(true);
-      setTimeout(() => navigate("/dashboard"), 1800);
+      navigate("/dashboard");
     } catch (err) {
       setError(getErrorMessage(err, {
         400: "Please double-check your details and try again.",
@@ -128,7 +125,7 @@ export default function RegisterPage() {
         {success && (
           <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-5">
             <span className="text-base">✅</span>
-            <span className="font-inter text-[14px] text-green-700">Account created! Redirecting to sign in…</span>
+            <span className="font-inter text-[14px] text-green-700">Account created! Taking you to your dashboard…</span>
           </div>
         )}
         {error && (

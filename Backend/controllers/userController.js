@@ -33,11 +33,20 @@ export const register = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 8);
 
-        await User.create({
+        const user = await User.create({
             fullName,
             email,
             password: hashedPassword,
         })
+
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
+
+        user.refreshTokenHash = hashToken(refreshToken);
+        await user.save();
+
+        res.cookie("accessToken", accessToken, accessTokenOptions);
+        res.cookie("refreshToken", refreshToken, refreshTokenOptions);
 
         return res.status(201).json({ message: "user registered successfully" });
 

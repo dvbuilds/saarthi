@@ -7,9 +7,6 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Runs once on app mount — asks the backend "who am I?" based on
-    // whatever cookies are present. This is what makes login survive
-    // a closed tab/refresh, since cookies persist but React state doesn't.
     const checkAuth = async () => {
         try {
             const response = await API.get('/api/users/me');
@@ -27,7 +24,12 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         await API.post('/api/users/login', { email, password });
-        await checkAuth(); // populate user state from the fresh session
+        await checkAuth();
+    };
+
+    const register = async (fullName, email, password) => {
+        await API.post('/api/users/register', { fullName, email, password });
+        await checkAuth(); // register now sets cookies too, so this populates user state
     };
 
     const logout = async () => {
@@ -43,6 +45,7 @@ export const AuthProvider = ({ children }) => {
         isLoading,
         isAuthenticated: !!user,
         login,
+        register,
         logout,
         checkAuth,
     };

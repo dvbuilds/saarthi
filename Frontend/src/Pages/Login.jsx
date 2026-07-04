@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import API from "../services/api.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 const GoogleIcon = () => (
@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleChange = e => { setForm({...form, [e.target.name]: e.target.value}); setError(""); };
 
@@ -30,7 +31,7 @@ export default function LoginPage() {
 
     setLoading(true); setError("");
     try {
-      await API.post("/users/login", form);
+      await login(form.email, form.password);
       navigate("/dashboard");
     } catch (err) {
       setError(getErrorMessage(err, {
