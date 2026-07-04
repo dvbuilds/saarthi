@@ -1,7 +1,7 @@
 import { User } from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { handleServerError } from "../utils/handleServerError.js";
+import { handleServerError } from "../services/handleServerError.js";
 
 export const register = async (req, res) => {
     try {
