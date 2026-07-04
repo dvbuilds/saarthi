@@ -1,6 +1,7 @@
 import cloudinary from "../config/cloudinary.js";
 import { Document } from "../models/Document.js";
 import { extractPdfText } from "../services/extractPdfText.js";
+import { handleServerError } from "../utils/handleServerError.js";
 
 export const uploadDocument = async (req, res) => {
     try {
@@ -18,7 +19,8 @@ export const uploadDocument = async (req, res) => {
             },
             async (error, result) => {
                 if (error) {
-                    return res.status(500).json({ message: error.message });
+                    console.error(error);
+                    return res.status(500).json({ message: "Upload failed. Please try again." });
                 }
 
                 const document = await Document.create({
@@ -50,7 +52,7 @@ export const uploadDocument = async (req, res) => {
 
         uploadStream.end(file.buffer);
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        return handleServerError(res, error, "Upload failed. Please try again.");
     }
 }
 
@@ -62,10 +64,7 @@ export const fetchAllDocuments = async (req, res) => {
 
         return res.status(200).json({ documents });
     } catch (error) {
-        return res.status(500).json({
-            message: "No documents found",
-            error: error.message,
-        });
+        return handleServerError(res, error, "Couldn't load your documents. Please try again.");
     }
 }
 
@@ -89,7 +88,7 @@ export const fetchDocumentById = async (req, res) => {
         return res.status(200).json({ document });
 
     } catch (error) {
-        return res.status(500).json({ message: error.message })
+        return handleServerError(res, error, "Couldn't load this document. Please try again.");
     }
 }
 
@@ -119,8 +118,6 @@ export const deleteDocument = async (req, res) => {
 
         return res.status(200).json({ message: "File deleted succesfully" });
     } catch (error) {
-        return res.status(500).json({
-            message: error.message
-        })
+        return handleServerError(res, error, "Couldn't delete this file. Please try again.");
     }
 }

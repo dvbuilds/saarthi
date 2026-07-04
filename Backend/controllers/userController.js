@@ -1,17 +1,18 @@
-import {User} from "../models/User.js";
+import { User } from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { handleServerError } from "../utils/handleServerError.js";
 
 export const register = async (req, res) => {
     try {
-        const {fullName, email, password } = req.body;
+        const { fullName, email, password } = req.body;
 
-        if(!fullName || !email || !password) {
-            return res.status(400).json({message : "Fill required fields" });
+        if (!fullName || !email || !password) {
+            return res.status(400).json({ message: "Fill required fields" });
         }
 
         const existingUser = await User.findOne({ email });
-        if(existingUser) {
+        if (existingUser) {
             return res.status(400).json({ message: "User already exists" });
         }
 
@@ -26,7 +27,7 @@ export const register = async (req, res) => {
         return res.status(201).json({ message: "user registered successfully" });
 
     } catch (error) {
-        return res.status(500).json({ message : error.message });
+        return handleServerError(res, error, "Couldn't create your account. Please try again.");
     }
 }
 
@@ -34,18 +35,18 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        if(!email || !password) {
+        if (!email || !password) {
             return res.status(400).json({ message: "Fill required fields" });
         }
 
         const user = await User.findOne({ email });
-        if(!user) {
+        if (!user) {
             return res.status(400).json({ message: "User doesn't exists" });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
 
-        if(!isMatch) {
+        if (!isMatch) {
             return res.status(400).json({
                 message: "Invalid Credentials",
             })
@@ -53,7 +54,7 @@ export const login = async (req, res) => {
 
         const token = jwt.sign(
             {
-                userId : user._id,
+                userId: user._id,
                 email: user.email,
             },
             process.env.JWT_SECRET,
@@ -72,7 +73,7 @@ export const login = async (req, res) => {
         return res.status(200).json({ message: "user logged-in successfully" });
 
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        return handleServerError(res, error, "Couldn't sign you in. Please try again.");
     }
 }
 

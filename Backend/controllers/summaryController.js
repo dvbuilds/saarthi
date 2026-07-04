@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk';
 import { Document } from "../models/Document.js";
+import { handleServerError } from '../services/handleServerError.js';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -86,6 +87,6 @@ ${pdfContext}`;
         return res.status(200).json({ summary: chunkSummaries });
 
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        return handleServerError(res, error,"Couldn't generate content. Please try again.")
     }
 }

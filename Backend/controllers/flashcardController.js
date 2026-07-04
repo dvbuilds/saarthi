@@ -1,5 +1,6 @@
 import { Document } from "../models/Document.js";
 import Groq from "groq-sdk";
+import { handleServerError } from "../services/handleServerError.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -69,7 +70,7 @@ export const generateFlashcards = async (req, res) => {
         return res.status(200).json({ flashcards: allFlashcards })
 
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        return handleServerError(res, error, "Couldn't generate content. Please try again.")
     }
 
 };

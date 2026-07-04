@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk';
 import {Document} from '../models/Document.js';
+import { handleServerError } from '../services/handleServerError.js';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -64,6 +65,6 @@ export const chatWithPDF = async (req, res) => {
 
         return res.status(200).json({ reply });
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        return handleServerError(res, error, "Couldn't start chat. Please try again.")
     }
 }
