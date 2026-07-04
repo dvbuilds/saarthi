@@ -52,7 +52,7 @@ API.interceptors.response.use(
         isRefreshing = true;
 
         try {
-            await API.post('/api/users/refresh');
+            await API.post('/users/refresh');
             isRefreshing = false;
             onRefreshed();
             return API(originalRequest);

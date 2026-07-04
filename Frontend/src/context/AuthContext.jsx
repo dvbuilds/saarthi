@@ -23,18 +23,18 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (email, password) => {
-        await API.post('/api/users/login', { email, password });
+        await API.post('/users/login', { email, password });
         await checkAuth();
     };
 
     const register = async (fullName, email, password) => {
-        await API.post('/api/users/register', { fullName, email, password });
+        await API.post('/users/register', { fullName, email, password });
         await checkAuth(); // register now sets cookies too, so this populates user state
     };
 
     const logout = async () => {
         try {
-            await API.post('/api/users/logout');
+            await API.post('/users/logout');
         } finally {
             setUser(null);
         }
