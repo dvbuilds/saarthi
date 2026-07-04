@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const BackIcon = () => (
@@ -22,6 +23,10 @@ function Flashcard({ card, index, total }) {
   useEffect(() => {
     setFlipped(false); // reset flip on card change
   }, [index]);
+
+  // Defensive guard — should never happen if the parent checks bounds first,
+  // but prevents a crash on card.front if it ever does.
+  if (!card) return null;
 
   return (
     <div className="w-full max-w-[560px] mx-auto" style={{ perspective: "1200px" }}>
@@ -86,7 +91,10 @@ export default function FlashcardsPage() {
         const res = await API.post(`/flashcards/${id}`);
         setFlashcards(res.data.flashcards || []);
       } catch (err) {
-        setError(err.response?.data?.message || err.message || "Failed to generate flashcards.");
+        setError(getErrorMessage(err, {
+          404: "This document couldn't be found. It may have been deleted.",
+          422: "Couldn't generate flashcards from this document — it may be too short or unreadable.",
+        }));
       } finally {
         setLoading(false);
       }
@@ -131,6 +139,26 @@ export default function FlashcardsPage() {
           <p className="text-red-500 font-inter text-[14px]">⚠️ {error}</p>
           <button onClick={() => navigate("/dashboard")}
             className="text-blue font-inter text-[13px] underline">
+            ← Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Empty result — API succeeded but produced no cards. Without this
+  // guard, the component below would crash trying to render flashcards[0]. ──
+  if (flashcards.length === 0) {
+    return (
+      <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_rgba(10,22,40,0.10)] p-10 w-full max-w-[440px] text-center">
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center text-3xl mx-auto mb-6">🃏</div>
+          <h2 className="font-syne font-extrabold text-[20px] text-navy mb-2">No flashcards generated</h2>
+          <p className="font-inter text-[14px] text-slate-500 mb-8 leading-relaxed">
+            We couldn't create flashcards from this document. It may be too short, image-only, or missing readable text.
+          </p>
+          <button onClick={() => navigate("/dashboard")}
+            className="w-full py-4 rounded-[12px] border-[1.5px] border-slate-200 bg-white font-syne font-bold text-[15px] text-navy cursor-pointer hover:border-blue-300 hover:text-blue transition-all duration-200">
             ← Back to Dashboard
           </button>
         </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../services/api.js";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const BackIcon = () => (
@@ -81,6 +82,33 @@ function QuizScreen({ questions, onFinish }) {
   const q = questions[current];
   const total = questions.length;
   const progress = ((current) / total) * 100;
+
+  // Defensive guard — if a question in the array is malformed (missing
+  // options/answer), don't crash the whole quiz. Skip forward instead.
+  if (!q || !Array.isArray(q.options)) {
+    return (
+      <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_rgba(10,22,40,0.10)] p-10 w-full max-w-[440px] text-center">
+          <p className="text-red-500 font-inter text-[14px] mb-6">⚠️ This question couldn't be loaded properly.</p>
+          {current + 1 < total ? (
+            <button
+              onClick={() => setCurrent(c => c + 1)}
+              className="w-full py-4 rounded-[12px] bg-gradient-to-br from-amber-400 to-amber-500 font-syne font-bold text-[15px] text-navy border-none cursor-pointer shadow-[0_4px_14px_rgba(245,158,11,0.25)] hover:-translate-y-0.5 transition-all duration-200"
+            >
+              Skip to Next Question →
+            </button>
+          ) : (
+            <button
+              onClick={() => onFinish(answers)}
+              className="w-full py-4 rounded-[12px] bg-gradient-to-br from-blue to-blue-dark font-syne font-bold text-[15px] text-white border-none cursor-pointer shadow-[0_4px_14px_rgba(37,99,235,0.25)] hover:-translate-y-0.5 transition-all duration-200"
+            >
+              See Results →
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const handleSelect = (letter) => {
     if (confirmed) return;
@@ -216,7 +244,7 @@ function ResultsScreen({ answers, onRetry, onDashboard }) {
   const [expanded, setExpanded] = useState(null);
   const score = answers.filter(a => a.selected === a.correct).length;
   const total = answers.length;
-  const pct = Math.round((score / total) * 100);
+  const pct = total > 0 ? Math.round((score / total) * 100) : 0;
 
   const grade =
     pct >= 90 ? { label: "Excellent!", color: "text-green-600", bg: "bg-green-50", border: "border-green-200" } :
@@ -260,7 +288,7 @@ function ResultsScreen({ answers, onRetry, onDashboard }) {
                 {open && (
                   <div className="px-5 pb-5 border-t border-slate-100 pt-4">
                     <div className="flex flex-col gap-2 mb-4">
-                      {a.options.map(opt => {
+                      {(a.options || []).map(opt => {
                         const letter = opt.charAt(0);
                         const isCorrect = letter === a.correct;
                         const isYours = letter === a.selected;
@@ -329,10 +357,22 @@ export default function QuizPage() {
     setError("");
     try {
       const res = await API.post(`/quiz/${id}`, { count });
-      setQuestions(res.data.questions);
+      const generated = res.data.questions || [];
+
+      // Guard against the API succeeding but returning no usable questions —
+      // without this, moving to "quiz" stage would crash on questions[0].
+      if (generated.length === 0) {
+        setError("Couldn't generate quiz questions from this document. It may be too short or unreadable.");
+        return;
+      }
+
+      setQuestions(generated);
       setStage("quiz");
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to generate quiz.");
+      setError(getErrorMessage(err, {
+        404: "This document couldn't be found. It may have been deleted.",
+        422: "Couldn't generate a quiz from this document — it may be too short or unreadable.",
+      }));
     } finally {
       setLoading(false);
     }
@@ -362,7 +402,7 @@ export default function QuizPage() {
           </button>
         </div>
         {error && (
-          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-red-50 border border-red-200 text-red-700 font-inter text-[13px] px-5 py-3 rounded-2xl shadow">
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-red-50 border border-red-200 text-red-700 font-inter text-[13px] px-5 py-3 rounded-2xl shadow max-w-[90vw] text-center">
             ⚠️ {error}
           </div>
         )}
@@ -372,6 +412,11 @@ export default function QuizPage() {
   }
 
   if (stage === "quiz") {
+    // Extra safety net in case state gets out of sync somehow
+    if (questions.length === 0) {
+      setStage("select");
+      return null;
+    }
     return <QuizScreen questions={questions} onFinish={handleFinish} />;
   }
 

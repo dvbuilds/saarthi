@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import API from "../services/api.js";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24">
@@ -23,8 +24,13 @@ export default function RegisterPage() {
 
   const handleSubmit = async () => {
     if (!form.fullName || !form.email || !form.password || !form.confirm) { setError("Please fill in all fields."); return; }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(form.email)) { setError("Please enter a valid email address."); return; }
+
     if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
+
     setLoading(true); setError("");
     try {
       await API.post("/users/register", {
@@ -34,7 +40,13 @@ export default function RegisterPage() {
       });
       setSuccess(true);
       setTimeout(() => navigate("/dashboard"), 1800);
-    } catch (err) { setError(err.response?.data?.message || err.message); }
+    } catch (err) {
+      setError(getErrorMessage(err, {
+        400: "Please double-check your details and try again.",
+        409: "An account with this email already exists. Try signing in instead.",
+        422: "Please double-check your details and try again.",
+      }));
+    }
     finally { setLoading(false); }
   };
 

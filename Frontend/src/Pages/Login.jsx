@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import API from "../services/api.js";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24">
@@ -22,11 +23,23 @@ export default function LoginPage() {
 
   const handleSubmit = async () => {
     if (!form.email || !form.password) { setError("Please fill in all fields."); return; }
+
+    // Basic client-side email sanity check — catches typos before hitting the server
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(form.email)) { setError("Please enter a valid email address."); return; }
+
     setLoading(true); setError("");
     try {
-      const { data } = await API.post("/users/login", form);
+      await API.post("/users/login", form);
       navigate("/dashboard");
-    } catch (err) { setError(err.response?.data?.message || err.message); }
+    } catch (err) {
+      setError(getErrorMessage(err, {
+        400: "Please enter both your email and password.",
+        401: "Incorrect email or password. Please try again.",
+        404: "No account found with this email. Check the address or sign up.",
+        429: "Too many login attempts. Please wait a moment and try again.",
+      }));
+    }
     finally { setLoading(false); }
   };
 
