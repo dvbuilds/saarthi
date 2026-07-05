@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import API from "../services/api";
-import { getErrorMessage } from "../utils/getErrorMessage.js";
+import { useJobPolling } from "../hooks/useJobPolling.js";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const BackIcon = () => (
@@ -24,24 +23,19 @@ function Flashcard({ card, index, total }) {
     setFlipped(false); // reset flip on card change
   }, [index]);
 
-  // Defensive guard — should never happen if the parent checks bounds first,
-  // but prevents a crash on card.front if it ever does.
   if (!card) return null;
 
   return (
     <div className="w-full max-w-[560px] mx-auto" style={{ perspective: "1200px" }}>
-      {/* counter */}
       <p className="text-center font-inter text-[13px] text-slate-500 mb-4">
         Card {index + 1} of {total}
       </p>
 
-      {/* card */}
       <div
         onClick={() => setFlipped(f => !f)}
         className="relative w-full cursor-pointer"
         style={{ height: "280px" }}
       >
-        {/* inner wrapper — flips */}
         <div
           className="absolute inset-0 transition-transform duration-500"
           style={{
@@ -49,7 +43,6 @@ function Flashcard({ card, index, total }) {
             transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
           }}
         >
-          {/* FRONT */}
           <div
             className="absolute inset-0 rounded-3xl border-[1.5px] border-green-200 bg-white shadow-[0_8px_32px_rgba(10,22,40,0.09)] flex flex-col items-center justify-center px-10 text-center"
             style={{ backfaceVisibility: "hidden" }}
@@ -59,7 +52,6 @@ function Flashcard({ card, index, total }) {
             <p className="font-inter text-[12px] text-slate-400 mt-6">Tap to reveal answer</p>
           </div>
 
-          {/* BACK */}
           <div
             className="absolute inset-0 rounded-3xl border-[1.5px] border-blue-200 bg-blue-50 shadow-[0_8px_32px_rgba(37,99,235,0.10)] flex flex-col items-center justify-center px-10 text-center"
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
@@ -79,28 +71,11 @@ export default function FlashcardsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [flashcards, setFlashcards] = useState([]);
-  const [current, setCurrent] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [done, setDone] = useState(false);
+  const { result, loading, error } = useJobPolling(`/flashcards/${id}`);
+  const flashcards = result || [];
 
-  useEffect(() => {
-    const fetchFlashcards = async () => {
-      try {
-        const res = await API.post(`/flashcards/${id}`);
-        setFlashcards(res.data.flashcards || []);
-      } catch (err) {
-        setError(getErrorMessage(err, {
-          404: "This document couldn't be found. It may have been deleted.",
-          422: "Couldn't generate flashcards from this document — it may be too short or unreadable.",
-        }));
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFlashcards();
-  }, [id]);
+  const [current, setCurrent] = useState(0);
+  const [done, setDone] = useState(false);
 
   const handlePrev = () => {
     if (current > 0) setCurrent(c => c - 1);
@@ -126,6 +101,7 @@ export default function FlashcardsPage() {
         <div className="text-center space-y-4">
           <div className="flex justify-center"><SpinnerIcon /></div>
           <p className="font-inter text-[14px] text-slate-500">Generating flashcards from your document…</p>
+          <p className="font-inter text-[12px] text-slate-400">This can take a bit longer for larger documents</p>
         </div>
       </div>
     );
@@ -146,8 +122,7 @@ export default function FlashcardsPage() {
     );
   }
 
-  // ── Empty result — API succeeded but produced no cards. Without this
-  // guard, the component below would crash trying to render flashcards[0]. ──
+  // ── Empty result ──────────────────────────────────────────────────────────
   if (flashcards.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
@@ -195,7 +170,6 @@ export default function FlashcardsPage() {
   return (
     <div className="min-h-screen bg-offwhite dot-bg flex flex-col">
 
-      {/* Navbar */}
       <nav className="sticky top-0 z-50 h-[66px] flex items-center justify-between px-[5%] bg-white/95 backdrop-blur-xl shadow-[0_1px_20px_rgba(10,22,40,0.07)] border-b border-slate-100">
         <button onClick={() => navigate("/dashboard")}
           className="flex items-center gap-1.5 text-slate-500 hover:text-navy font-inter text-[13px] transition-colors">
@@ -207,17 +181,15 @@ export default function FlashcardsPage() {
             {flashcards.length} flashcards
           </span>
         </div>
-        <div className="w-20" /> {/* spacer */}
+        <div className="w-20" />
       </nav>
 
-      {/* Header */}
       <div className="px-[5%] pt-8 pb-6 text-center">
         <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center text-2xl mx-auto mb-3">🃏</div>
         <h1 className="font-syne font-extrabold text-[24px] text-navy">Flashcards</h1>
         <p className="font-inter text-[13px] text-slate-500 mt-1">Tap a card to flip it</p>
       </div>
 
-      {/* Progress bar */}
       <div className="px-[5%] mb-8">
         <div className="max-w-[560px] mx-auto h-1.5 bg-slate-200 rounded-full overflow-hidden">
           <div
@@ -227,7 +199,6 @@ export default function FlashcardsPage() {
         </div>
       </div>
 
-      {/* Card */}
       <div className="flex-1 px-[5%]">
         <Flashcard
           card={flashcards[current]}
@@ -236,7 +207,6 @@ export default function FlashcardsPage() {
         />
       </div>
 
-      {/* Navigation buttons */}
       <div className="px-[5%] py-8">
         <div className="max-w-[560px] mx-auto flex gap-3">
           <button

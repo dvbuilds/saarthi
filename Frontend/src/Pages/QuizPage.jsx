@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import API from "../services/api.js";
-import { getErrorMessage } from "../utils/getErrorMessage.js";
+import { useJobPolling } from "../hooks/useJobPolling.js";
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
     <polyline points="15 18 9 12 15 6" />
@@ -76,15 +74,13 @@ function CountSelector({ onStart, loading }) {
 function QuizScreen({ questions, onFinish }) {
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState(null);
-  const [answers, setAnswers] = useState([]); // { selected, correct, explanation }
+  const [answers, setAnswers] = useState([]);
   const [confirmed, setConfirmed] = useState(false);
 
   const q = questions[current];
   const total = questions.length;
   const progress = ((current) / total) * 100;
 
-  // Defensive guard — if a question in the array is malformed (missing
-  // options/answer), don't crash the whole quiz. Skip forward instead.
   if (!q || !Array.isArray(q.options)) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
@@ -145,7 +141,6 @@ function QuizScreen({ questions, onFinish }) {
     <div className="min-h-screen bg-offwhite dot-bg px-4 py-10">
       <div className="max-w-[680px] mx-auto">
 
-        {/* Progress */}
         <div className="mb-8">
           <div className="flex justify-between font-inter text-[13px] text-slate-500 mb-2">
             <span>Question {current + 1} of {total}</span>
@@ -159,7 +154,6 @@ function QuizScreen({ questions, onFinish }) {
           </div>
         </div>
 
-        {/* Question card */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_8px_32px_rgba(10,22,40,0.08)] p-8 mb-5">
           <p className="font-inter text-[11px] font-semibold text-amber-500 tracking-widest uppercase mb-3">
             Question {current + 1}
@@ -170,7 +164,7 @@ function QuizScreen({ questions, onFinish }) {
 
           <div className="flex flex-col gap-3">
             {q.options.map((opt) => {
-              const letter = opt.charAt(0); // "A", "B", "C", "D"
+              const letter = opt.charAt(0);
               const isSelected = selected === letter;
               const isCorrectOpt = confirmed && letter === q.answer;
               const isWrongOpt = confirmed && isSelected && letter !== q.answer;
@@ -204,7 +198,6 @@ function QuizScreen({ questions, onFinish }) {
           </div>
         </div>
 
-        {/* Explanation (shown after confirming) */}
         {confirmed && (
           <div className={`rounded-2xl px-6 py-4 mb-5 border ${isCorrect ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
             <p className={`font-syne font-bold text-[13px] mb-1 ${isCorrect ? "text-green-700" : "text-red-700"}`}>
@@ -214,7 +207,6 @@ function QuizScreen({ questions, onFinish }) {
           </div>
         )}
 
-        {/* Action buttons */}
         <div className="flex gap-3">
           {!confirmed ? (
             <button
@@ -256,7 +248,6 @@ function ResultsScreen({ answers, onRetry, onDashboard }) {
     <div className="min-h-screen bg-offwhite dot-bg px-4 py-10">
       <div className="max-w-[680px] mx-auto">
 
-        {/* Score card */}
         <div className={`rounded-3xl border ${grade.border} ${grade.bg} p-8 text-center mb-8`}>
           <p className="font-inter text-[13px] font-semibold text-slate-500 tracking-widest uppercase mb-3">Quiz Complete</p>
           <div className="text-[64px] font-syne font-extrabold text-navy leading-none mb-2">{pct}%</div>
@@ -266,7 +257,6 @@ function ResultsScreen({ answers, onRetry, onDashboard }) {
           </p>
         </div>
 
-        {/* Review */}
         <h2 className="font-syne font-bold text-[16px] text-navy mb-4">Review All Questions</h2>
         <div className="flex flex-col gap-3 mb-8">
           {answers.map((a, i) => {
@@ -320,7 +310,6 @@ function ResultsScreen({ answers, onRetry, onDashboard }) {
           })}
         </div>
 
-        {/* Actions */}
         <div className="flex gap-3">
           <button
             onClick={onRetry}
@@ -347,36 +336,20 @@ export default function QuizPage() {
   const navigate = useNavigate();
 
   const [stage, setStage] = useState("select"); // "select" | "quiz" | "results"
-  const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+
+  // autoStart: false — generation only begins once the user picks a count and hits Generate
+  const { result, loading, error, start } = useJobPolling(`/quiz/${id}`, { autoStart: false });
+  const questions = result || [];
 
   const handleStart = async (count) => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await API.post(`/quiz/${id}`, { count });
-      const generated = res.data.questions || [];
-
-      // Guard against the API succeeding but returning no usable questions —
-      // without this, moving to "quiz" stage would crash on questions[0].
-      if (generated.length === 0) {
-        setError("Couldn't generate quiz questions from this document. It may be too short or unreadable.");
-        return;
-      }
-
-      setQuestions(generated);
-      setStage("quiz");
-    } catch (err) {
-      setError(getErrorMessage(err, {
-        404: "This document couldn't be found. It may have been deleted.",
-        422: "Couldn't generate a quiz from this document — it may be too short or unreadable.",
-      }));
-    } finally {
-      setLoading(false);
-    }
+    await start({ count });
   };
+
+  // Once the job completes with actual questions, move to the quiz stage
+  if (stage === "select" && !loading && !error && questions.length > 0) {
+    setStage("quiz");
+  }
 
   const handleFinish = (finalAnswers) => {
     setAnswers(finalAnswers);
@@ -384,7 +357,6 @@ export default function QuizPage() {
   };
 
   const handleRetry = () => {
-    setQuestions([]);
     setAnswers([]);
     setStage("select");
   };
@@ -392,7 +364,6 @@ export default function QuizPage() {
   if (stage === "select") {
     return (
       <>
-        {/* Back button */}
         <div className="fixed top-5 left-5 z-50">
           <button
             onClick={() => navigate("/dashboard")}
@@ -406,13 +377,17 @@ export default function QuizPage() {
             ⚠️ {error}
           </div>
         )}
+        {!loading && !error && result !== null && questions.length === 0 && (
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-amber-50 border border-amber-200 text-amber-700 font-inter text-[13px] px-5 py-3 rounded-2xl shadow max-w-[90vw] text-center">
+            ⚠️ Couldn't generate quiz questions from this document — it may be too short or unreadable.
+          </div>
+        )}
         <CountSelector onStart={handleStart} loading={loading} />
       </>
     );
   }
 
   if (stage === "quiz") {
-    // Extra safety net in case state gets out of sync somehow
     if (questions.length === 0) {
       setStage("select");
       return null;

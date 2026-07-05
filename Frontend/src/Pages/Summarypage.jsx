@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import API from "../services/api";
+import { useJobPolling } from "../hooks/useJobPolling.js";
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -24,24 +24,10 @@ export default function SummaryPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [summary, setSummary] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const { result, loading, error } = useJobPolling(`/summary/${id}`);
+  const summary = result || [];
 
-  useEffect(() => {
-    const fetchSummary = async () => {
-      try {
-        const res = await API.post(`/summary/${id}`);
-        setSummary(res.data.summary || []);
-      } catch (err) {
-        setError(err.response?.data?.message || err.message || "Failed to generate summary.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSummary();
-  }, [id]);
+  const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
     const text = summary.map((p, i) => `${i + 1}. ${p}`).join("\n");
@@ -57,7 +43,7 @@ export default function SummaryPage() {
         <div className="text-center space-y-4">
           <div className="flex justify-center"><SpinnerIcon /></div>
           <p className="font-inter text-[14px] text-slate-500">Summarizing your document…</p>
-          <p className="font-inter text-[12px] text-slate-400">This may take a few seconds</p>
+          <p className="font-inter text-[12px] text-slate-400">This can take a bit longer for larger documents</p>
         </div>
       </div>
     );
@@ -78,11 +64,29 @@ export default function SummaryPage() {
     );
   }
 
+  // ── Empty result ──────────────────────────────────────────────────────────
+  if (summary.length === 0) {
+    return (
+      <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_rgba(10,22,40,0.10)] p-10 w-full max-w-[440px] text-center">
+          <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center text-3xl mx-auto mb-6">📊</div>
+          <h2 className="font-syne font-extrabold text-[20px] text-navy mb-2">No summary generated</h2>
+          <p className="font-inter text-[14px] text-slate-500 mb-8 leading-relaxed">
+            We couldn't summarize this document. It may be too short, image-only, or missing readable text.
+          </p>
+          <button onClick={() => navigate("/dashboard")}
+            className="w-full py-4 rounded-[12px] border-[1.5px] border-slate-200 bg-white font-syne font-bold text-[15px] text-navy cursor-pointer hover:border-blue-300 hover:text-blue transition-all duration-200">
+            ← Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── Main ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-offwhite dot-bg flex flex-col">
 
-      {/* Navbar */}
       <nav className="sticky top-0 z-50 h-[66px] flex items-center justify-between px-[5%] bg-white/95 backdrop-blur-xl shadow-[0_1px_20px_rgba(10,22,40,0.07)] border-b border-slate-100">
         <button onClick={() => navigate("/dashboard")}
           className="flex items-center gap-1.5 text-slate-500 hover:text-navy font-inter text-[13px] transition-colors">
@@ -103,14 +107,12 @@ export default function SummaryPage() {
         </button>
       </nav>
 
-      {/* Header */}
       <div className="px-[5%] pt-8 pb-6 text-center">
         <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-2xl mx-auto mb-3">📊</div>
         <h1 className="font-syne font-extrabold text-[24px] text-navy">Document Summary</h1>
         <p className="font-inter text-[13px] text-slate-500 mt-1">Key points extracted from your PDF</p>
       </div>
 
-      {/* Summary points */}
       <div className="px-[5%] pb-12">
         <div className="max-w-[720px] mx-auto flex flex-col gap-4">
           {summary.map((point, i) => (
@@ -127,7 +129,6 @@ export default function SummaryPage() {
         </div>
       </div>
 
-      {/* Bottom actions */}
       <div className="sticky bottom-0 px-[5%] py-5 bg-white/90 backdrop-blur-xl border-t border-slate-100">
         <div className="max-w-[720px] mx-auto flex gap-3">
           <button

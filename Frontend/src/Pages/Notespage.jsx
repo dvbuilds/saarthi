@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import API from "../services/api";
+import { useJobPolling } from "../hooks/useJobPolling.js";
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -26,7 +26,6 @@ const ChevronIcon = ({ open }) => (
   </svg>
 );
 
-// ── Single topic card (collapsible) ──────────────────────────────────────────
 function TopicCard({ topic, points, index, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen);
   const [copied, setCopied] = useState(false);
@@ -41,7 +40,6 @@ function TopicCard({ topic, points, index, defaultOpen }) {
 
   return (
     <div className={`bg-white rounded-2xl border border-slate-100 shadow-[0_4px_16px_rgba(10,22,40,0.06)] overflow-hidden transition-all duration-200 hover:shadow-[0_8px_24px_rgba(10,22,40,0.09)]`}>
-      {/* Header */}
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-4 px-6 py-4 text-left"
@@ -65,7 +63,6 @@ function TopicCard({ topic, points, index, defaultOpen }) {
         </div>
       </button>
 
-      {/* Points */}
       {open && (
         <div className="px-6 pb-5 border-t border-slate-100 pt-4 flex flex-col gap-2.5">
           {points.map((point, i) => (
@@ -82,31 +79,16 @@ function TopicCard({ topic, points, index, defaultOpen }) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
 export default function NotesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [notes, setNotes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { result, loading, error } = useJobPolling(`/notes/${id}`);
+  const notes = result || [];
+
   const [search, setSearch] = useState("");
   const [allExpanded, setAllExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    const fetchNotes = async () => {
-      try {
-        const res = await API.post(`/notes/${id}`);
-        setNotes(res.data.notes || []);
-      } catch (err) {
-        setError(err.response?.data?.message || err.message || "Failed to generate notes.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchNotes();
-  }, [id]);
 
   const filteredNotes = notes.filter(n =>
     n.topic.toLowerCase().includes(search.toLowerCase()) ||
@@ -129,7 +111,7 @@ export default function NotesPage() {
         <div className="text-center space-y-4">
           <div className="flex justify-center"><SpinnerIcon /></div>
           <p className="font-inter text-[14px] text-slate-500">Generating structured notes…</p>
-          <p className="font-inter text-[12px] text-slate-400">This may take a few seconds</p>
+          <p className="font-inter text-[12px] text-slate-400">This can take a bit longer for larger documents</p>
         </div>
       </div>
     );
@@ -150,11 +132,29 @@ export default function NotesPage() {
     );
   }
 
+  // ── Empty result ──────────────────────────────────────────────────────────
+  if (notes.length === 0) {
+    return (
+      <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_rgba(10,22,40,0.10)] p-10 w-full max-w-[440px] text-center">
+          <div className="w-16 h-16 rounded-2xl bg-orange-50 flex items-center justify-center text-3xl mx-auto mb-6">✨</div>
+          <h2 className="font-syne font-extrabold text-[20px] text-navy mb-2">No notes generated</h2>
+          <p className="font-inter text-[14px] text-slate-500 mb-8 leading-relaxed">
+            We couldn't create notes from this document. It may be too short, image-only, or missing readable text.
+          </p>
+          <button onClick={() => navigate("/dashboard")}
+            className="w-full py-4 rounded-[12px] border-[1.5px] border-slate-200 bg-white font-syne font-bold text-[15px] text-navy cursor-pointer hover:border-blue-300 hover:text-blue transition-all duration-200">
+            ← Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── Main ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-offwhite dot-bg flex flex-col">
 
-      {/* Navbar */}
       <nav className="sticky top-0 z-50 h-[66px] flex items-center justify-between px-[5%] bg-white/95 backdrop-blur-xl shadow-[0_1px_20px_rgba(10,22,40,0.07)] border-b border-slate-100">
         <button onClick={() => navigate("/dashboard")}
           className="flex items-center gap-1.5 text-slate-500 hover:text-navy font-inter text-[13px] transition-colors">
@@ -185,14 +185,12 @@ export default function NotesPage() {
         </div>
       </nav>
 
-      {/* Header */}
       <div className="px-[5%] pt-8 pb-4 text-center">
         <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-2xl mx-auto mb-3">✨</div>
         <h1 className="font-syne font-extrabold text-[24px] text-navy">Study Notes</h1>
         <p className="font-inter text-[13px] text-slate-500 mt-1">Topic-wise notes generated from your PDF</p>
       </div>
 
-      {/* Search */}
       <div className="px-[5%] mb-6">
         <div className="max-w-[720px] mx-auto relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">🔍</span>
@@ -212,7 +210,6 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* Notes */}
       <div className="px-[5%] pb-12">
         <div className="max-w-[720px] mx-auto flex flex-col gap-4">
           {filteredNotes.length === 0 ? (
@@ -233,7 +230,6 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* Bottom actions */}
       <div className="sticky bottom-0 px-[5%] py-5 bg-white/90 backdrop-blur-xl border-t border-slate-100">
         <div className="max-w-[720px] mx-auto flex gap-3">
           <button
