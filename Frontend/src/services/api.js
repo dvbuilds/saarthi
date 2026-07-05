@@ -26,19 +26,10 @@ API.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        // The refresh call itself failed — session is dead, but don't redirect here.
-        // Let whichever caller invoked this (checkAuth, or a real protected request)
-        // handle it in their own catch block.
+        // The refresh call itself failed — nothing more to try
         if (originalRequest.url?.includes('/refresh')) {
             isRefreshing = false;
             refreshSubscribers = [];
-            return Promise.reject(error);
-        }
-
-        // The silent background auth check (/me) failing just means "not logged in" —
-        // this is a normal, expected outcome on every logged-out page load.
-        // No refresh attempt, no redirect. checkAuth's own catch sets user to null.
-        if (originalRequest.url?.includes('/me')) {
             return Promise.reject(error);
         }
 
@@ -62,9 +53,12 @@ API.interceptors.response.use(
         } catch (refreshError) {
             isRefreshing = false;
             refreshSubscribers = [];
-            // This IS a genuine protected-request failure (not /me, not /refresh itself) —
-            // a real page tried to do something and the session is dead. Redirect here.
-            window.location.href = '/login';
+
+            
+            if (!originalRequest.url?.includes('/me')) {
+                window.location.href = '/login';
+            }
+
             return Promise.reject(refreshError);
         }
     }
