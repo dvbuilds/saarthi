@@ -10,31 +10,40 @@ import quizRoutes from './routes/quizRoutes.js';
 import flashcardRoutes from './routes/flashcardRoutes.js';
 import summaryRoutes from './routes/summaryRoutes.js';
 import notesRoutes from './routes/notesRoute.js';
+import { startWorkers } from "./workers/startWorkers.js";
 
 const app = express();
 
-connectDB();
+const startServer = async () => {
+    await connectDB();
 
-app.use(cors({
-    origin: process.env.FRONTEND_URL,
-    credentials: true,
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true}));
-app.use(cookieParser());
+    // Workers need the DB connection ready before they can read/write
+    // documents and generation jobs, so this only starts after connectDB resolves.
+    startWorkers();
 
-app.use("/api/users", userRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/quiz', quizRoutes);
-app.use('/api/flashcards', flashcardRoutes);
-app.use('/api/summary', summaryRoutes);
-app.use("/api/notes", notesRoutes);
+    app.use(cors({
+        origin: process.env.FRONTEND_URL,
+        credentials: true,
+    }));
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true}));
+    app.use(cookieParser());
 
-app.get('/', (req, res) => {
-    res.json({ message: "Server is running"});
-} )
+    app.use("/api/users", userRoutes);
+    app.use("/api/upload", uploadRoutes);
+    app.use('/api/chat', chatRoutes);
+    app.use('/api/quiz', quizRoutes);
+    app.use('/api/flashcards', flashcardRoutes);
+    app.use('/api/summary', summaryRoutes);
+    app.use("/api/notes", notesRoutes);
 
-app.listen(process.env.PORT, () => {
-    console.log(`Server is running at PORT ${process.env.PORT}`);
-});
+    app.get('/', (req, res) => {
+        res.json({ message: "Server is running"});
+    })
+
+    app.listen(process.env.PORT, () => {
+        console.log(`Server is running at PORT ${process.env.PORT}`);
+    });
+};
+
+startServer();

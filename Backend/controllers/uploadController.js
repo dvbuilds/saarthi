@@ -1,6 +1,6 @@
 import cloudinary from "../config/cloudinary.js";
 import { Document } from "../models/Document.js";
-import { extractPdfText } from "../services/extractPdfText.js";
+import { documentQueue } from "../queues/documentQueue.js";
 import { handleServerError } from "../utils/handleServerError.js";
 
 export const uploadDocument = async (req, res) => {
@@ -15,7 +15,7 @@ export const uploadDocument = async (req, res) => {
             {
                 resource_type: "raw",
                 folder: "saarthi",
-                flags: "attachment:false", // ← add this
+                flags: "attachment:false",
             },
             async (error, result) => {
                 if (error) {
@@ -28,25 +28,20 @@ export const uploadDocument = async (req, res) => {
                     fileUrl: result.secure_url,
                     cloudinaryId: result.public_id,
                     uploadedBy: req.user._id,
-
+                    status: "processing",
                 });
 
-                try {
-                    const pages = await extractPdfText(result.secure_url);
+                // Extraction now happens in the background worker — this request
+                // returns immediately regardless of how many pages the PDF has.
+                await documentQueue.add("extract-text", {
+                    documentId: document._id.toString(),
+                    fileUrl: result.secure_url,
+                });
 
-                    document.extractedText = pages;
-
-                    document.status = "ready";
-                    await document.save();
-                } catch (error) {
-
-                    console.log("PDF Extraction Error:", error);
-
-                    document.status = "failed";
-                    await document.save();
-                }
-
-                return res.status(201).json({ message: "Document Uploaded Successfully" });
+                return res.status(201).json({
+                    message: "Document uploaded successfully. Processing in background.",
+                    documentId: document._id,
+                });
             }
         )
 
