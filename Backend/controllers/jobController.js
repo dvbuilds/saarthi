@@ -15,7 +15,11 @@ export const getJobStatus = async (req, res) => {
         return res.status(200).json({
             status: job.status,
             type: job.type,
-            result: job.status === "completed" ? job.result : null,
+            
+            result: job.result,
+            
+            completedChunks: job.completedChunks,
+            totalChunks: job.totalChunks,
             error: job.status === "failed" ? job.error : null,
         });
     } catch (error) {
