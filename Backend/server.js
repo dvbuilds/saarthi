@@ -10,6 +10,7 @@ import quizRoutes from './routes/quizRoutes.js';
 import flashcardRoutes from './routes/flashcardRoutes.js';
 import summaryRoutes from './routes/summaryRoutes.js';
 import notesRoutes from './routes/notesRoute.js';
+import jobRoutes from "./routes/jobRoutes.js";
 import { startWorkers } from "./workers/startWorkers.js";
 
 const app = express();
@@ -36,6 +37,7 @@ const startServer = async () => {
     app.use('/api/flashcards', flashcardRoutes);
     app.use('/api/summary', summaryRoutes);
     app.use("/api/notes", notesRoutes);
+    app.use("/jobs", jobRoutes);
 
     app.get('/', (req, res) => {
         res.json({ message: "Server is running"});
