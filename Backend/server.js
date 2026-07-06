@@ -37,7 +37,7 @@ const startServer = async () => {
     app.use('/api/flashcards', flashcardRoutes);
     app.use('/api/summary', summaryRoutes);
     app.use("/api/notes", notesRoutes);
-    app.use("/jobs", jobRoutes);
+    app.use("/api/jobs", jobRoutes);
 
     app.get('/', (req, res) => {
         res.json({ message: "Server is running"});
