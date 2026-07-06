@@ -83,8 +83,9 @@ export default function NotesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { result, loading, error } = useJobPolling(`/notes/${id}`);
+  const { result, loading, error, progress } = useJobPolling(`/notes/${id}`);
   const notes = result || [];
+  const isStillGenerating = loading && notes.length > 0;
 
   const [search, setSearch] = useState("");
   const [allExpanded, setAllExpanded] = useState(false);
@@ -104,14 +105,20 @@ export default function NotesPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-  if (loading) {
+  // ── Loading (nothing generated yet) ────────────────────────────────────────
+  // Only show the full-page spinner before the FIRST batch of notes lands.
+  // Once notes start streaming in, we fall through to the Main view below.
+  if (loading && notes.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="flex justify-center"><SpinnerIcon /></div>
           <p className="font-inter text-[14px] text-slate-500">Generating structured notes…</p>
-          <p className="font-inter text-[12px] text-slate-400">This can take a bit longer for larger documents</p>
+          <p className="font-inter text-[12px] text-slate-400">
+            {progress.total > 0
+              ? `Processing section ${progress.completed} of ${progress.total}…`
+              : "This can take a bit longer for larger documents"}
+          </p>
         </div>
       </div>
     );
@@ -132,8 +139,8 @@ export default function NotesPage() {
     );
   }
 
-  // ── Empty result ──────────────────────────────────────────────────────────
-  if (notes.length === 0) {
+  // ── Empty result (job finished but produced nothing) ───────────────────────
+  if (!loading && notes.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_rgba(10,22,40,0.10)] p-10 w-full max-w-[440px] text-center">
@@ -151,7 +158,7 @@ export default function NotesPage() {
     );
   }
 
-  // ── Main ─────────────────────────────────────────────────────────────────
+  // ── Main (renders as soon as we have any notes, even mid-generation) ───────
   return (
     <div className="min-h-screen bg-offwhite dot-bg flex flex-col">
 
@@ -162,9 +169,11 @@ export default function NotesPage() {
         </button>
 
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+          <span className={`w-1.5 h-1.5 rounded-full bg-orange-500 ${isStillGenerating ? "animate-pulse" : ""}`} />
           <span className="font-inter text-[12.5px] text-orange-700 font-medium">
-            {notes.length} topics
+            {isStillGenerating
+              ? `${notes.length} topics so far…`
+              : `${notes.length} topics`}
           </span>
         </div>
 
@@ -189,6 +198,17 @@ export default function NotesPage() {
         <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-2xl mx-auto mb-3">✨</div>
         <h1 className="font-syne font-extrabold text-[24px] text-navy">Study Notes</h1>
         <p className="font-inter text-[13px] text-slate-500 mt-1">Topic-wise notes generated from your PDF</p>
+
+        {isStillGenerating && (
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <SpinnerIcon />
+            <p className="font-inter text-[12.5px] text-slate-400">
+              {progress.total > 0
+                ? `Still generating — section ${progress.completed} of ${progress.total}`
+                : "More topics on the way…"}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="px-[5%] mb-6">

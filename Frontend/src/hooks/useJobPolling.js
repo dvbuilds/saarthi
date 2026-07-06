@@ -8,6 +8,7 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(autoStart);
     const [error, setError] = useState("");
+    const [progress, setProgress] = useState({ completed: 0, total: 0 }); // NEW
 
     const cancelledRef = useRef(false);
     const timeoutRef = useRef(null);
@@ -23,9 +24,23 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
 
         try {
             const res = await API.get(`/jobs/${jobId}`);
-            const { status, result: jobResult, error: jobError } = res.data;
+            const {
+                status,
+                result: jobResult,
+                error: jobError,
+                completedChunks,
+                totalChunks,
+            } = res.data;
 
             if (cancelledRef.current) return;
+
+            // NEW: update progress and partial result on every poll, regardless of status
+            if (typeof totalChunks === "number") {
+                setProgress({ completed: completedChunks || 0, total: totalChunks });
+            }
+            if (jobResult) {
+                setResult(jobResult); // shows growing array while status is still "processing"
+            }
 
             if (status === "completed") {
                 setResult(jobResult);
@@ -49,6 +64,7 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
         setLoading(true);
         setError("");
         setResult(null);
+        setProgress({ completed: 0, total: 0 });
 
         try {
             const res = await API.post(startUrl, body);
@@ -80,5 +96,5 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [startUrl]);
 
-    return { result, loading, error, start };
+    return { result, loading, error, progress, start }; // NEW: progress exposed
 }

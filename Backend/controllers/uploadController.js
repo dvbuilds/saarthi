@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import cloudinary from "../config/cloudinary.js";
 import { Document } from "../models/Document.js";
 import { documentQueue } from "../queues/documentQueue.js";
@@ -11,6 +12,15 @@ export const uploadDocument = async (req, res) => {
             return res.status(400).json({ message: "Upload A File" });
         }
 
+        // NEW: hash the raw buffer to detect duplicate content before we touch Cloudinary/OCR
+        const fileHash = crypto.createHash("sha256").update(file.buffer).digest("hex");
+
+        // NEW: look for any previously-processed document with identical content
+        const cachedDocument = await Document.findOne({
+            fileHash,
+            status: "ready",
+        }).sort({ createdAt: -1 });
+
         const uploadStream = cloudinary.uploader.upload_stream(
             {
                 resource_type: "raw",
@@ -23,11 +33,34 @@ export const uploadDocument = async (req, res) => {
                     return res.status(500).json({ message: "Upload failed. Please try again." });
                 }
 
+                if (cachedDocument) {
+                    // NEW: reuse cached extraction — still create a fresh Document record
+                    // (each user/upload keeps its own Cloudinary file + chat history),
+                    // but skip the extraction queue entirely since we already have the text.
+                    const document = await Document.create({
+                        fileName: file.originalname,
+                        fileUrl: result.secure_url,
+                        cloudinaryId: result.public_id,
+                        uploadedBy: req.user._id,
+                        fileHash,
+                        status: "ready",
+                        extractedText: cachedDocument.extractedText,
+                    });
+
+                    console.log(`[upload] Reused cached extraction for hash ${fileHash.slice(0, 8)}…`);
+
+                    return res.status(201).json({
+                        message: "Document uploaded successfully. Using cached extraction.",
+                        documentId: document._id,
+                    });
+                }
+
                 const document = await Document.create({
                     fileName: file.originalname,
                     fileUrl: result.secure_url,
                     cloudinaryId: result.public_id,
                     uploadedBy: req.user._id,
+                    fileHash,
                     status: "processing",
                 });
 

@@ -133,12 +133,19 @@ export const startWorkers = () => {
                     chunks.push(allPages.slice(i, i + chunkSize));
                 }
 
+                // NEW: record total chunk count upfront so the frontend can show "3 of 7" progress
+                await GenerationJob.findByIdAndUpdate(jobRecordId, {
+                    totalChunks: chunks.length,
+                    completedChunks: 0,
+                });
+
                 const questionsPerChunk = type === "quiz"
                     ? Math.max(1, Math.ceil((count || 10) / chunks.length))
                     : null;
 
                 const batchSize = 3;
                 let allResults = [];
+                let chunksDone = 0;
 
                 for (let i = 0; i < chunks.length; i += batchSize) {
                     const batch = chunks.slice(i, i + batchSize);
@@ -169,6 +176,21 @@ export const startWorkers = () => {
                     );
 
                     batchResults.forEach(r => allResults.push(...r));
+                    chunksDone += batch.length;
+
+                    // NEW: push partial results after every batch, not just at the end.
+                    // Skip this for "quiz" — it gets shuffled/sliced only at the very end,
+                    // so streaming mid-job would show an incomplete/misleading question set.
+                    if (type !== "quiz") {
+                        await GenerationJob.findByIdAndUpdate(jobRecordId, {
+                            result: allResults,
+                            completedChunks: Math.min(chunksDone, chunks.length),
+                        });
+                    } else {
+                        await GenerationJob.findByIdAndUpdate(jobRecordId, {
+                            completedChunks: Math.min(chunksDone, chunks.length),
+                        });
+                    }
 
                     if (i + batchSize < chunks.length) {
                         await new Promise(resolve => setTimeout(resolve, 1200));
@@ -182,6 +204,7 @@ export const startWorkers = () => {
                 await GenerationJob.findByIdAndUpdate(jobRecordId, {
                     status: "completed",
                     result: allResults,
+                    completedChunks: chunks.length,
                 });
 
                 console.log(`[worker] Generation job ${jobRecordId} (${type}) completed`);

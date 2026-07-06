@@ -29,6 +29,17 @@ const generationJobSchema = new mongoose.Schema({
         default: null,
     },
 
+    // NEW: progress tracking for streamed/partial results
+    totalChunks: {
+        type: Number,
+        default: 0,
+    },
+
+    completedChunks: {
+        type: Number,
+        default: 0,
+    },
+
     error: {
         type: String,
         default: null,

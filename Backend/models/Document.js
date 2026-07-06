@@ -19,6 +19,10 @@ const documentSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    fileHash: {
+        type: String,
+        index: true,
+    },
     status: {
         type: String,
         enum:["processing", "ready", "failed"],
