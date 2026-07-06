@@ -4,6 +4,6 @@ import { protect } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.get("/jobs/:jobId", protect, getJobStatus);
+router.get("/:jobId", protect, getJobStatus);
 
 export default router;
