@@ -11,8 +11,10 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await API.get('/users/me');
             setUser(response.data.user);
+            return true;
         } catch (error) {
             setUser(null);
+            return false;
         } finally {
             setIsLoading(false);
         }
@@ -22,14 +24,28 @@ export const AuthProvider = ({ children }) => {
         checkAuth();
     }, []);
 
+    // Throws AUTH_SYNC_ERROR if the login call itself succeeded but the
+    // follow-up /users/me check still comes back unauthenticated (e.g. the
+    // session cookie wasn't accepted). Without this, the caller sees no
+    // error at all — the promise resolves, but the user is never signed in.
     const login = async (email, password) => {
         await API.post('/users/login', { email, password });
-        await checkAuth();
+        const authenticated = await checkAuth();
+        if (!authenticated) {
+            const err = new Error("Sign-in didn't complete — please try again or check your email/password.");
+            err.code = 'AUTH_SYNC_ERROR';
+            throw err;
+        }
     };
 
     const register = async (fullName, email, password) => {
         await API.post('/users/register', { fullName, email, password });
-        await checkAuth(); // register now sets cookies too, so this populates user state
+        const authenticated = await checkAuth(); // register now sets cookies too, so this populates user state
+        if (!authenticated) {
+            const err = new Error("Account created, but sign-in didn't complete — please try logging in.");
+            err.code = 'AUTH_SYNC_ERROR';
+            throw err;
+        }
     };
 
     const logout = async () => {

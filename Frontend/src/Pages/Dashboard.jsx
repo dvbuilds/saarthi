@@ -101,7 +101,7 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
-      await API.delete("/users/logout");
+      await API.post("/users/logout");
     } catch { /* noop */ }
     setDocuments([]);
     setSelectedDocId(null);
@@ -131,6 +131,7 @@ export default function DashboardPage() {
 
     else if(tool.id === 'summary') {
       navigate(`/summary/${selectedDoc._id}`);
+      return;
     }
 
     else if(tool.id === 'notes') {

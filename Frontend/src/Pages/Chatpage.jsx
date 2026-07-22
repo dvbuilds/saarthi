@@ -72,7 +72,11 @@ function TypingIndicator() {
     );
 }
 
-// ── PDF Viewer — renders actual PDF via iframe ────────────────────────────────
+// ── PDF Viewer — renders the PDF natively via the browser's built-in viewer.
+// Avoids routing the file through Google's docs.google.com/viewer, which
+// leaked the (tokenized) file URL to Google on every open, double-downloaded
+// the file (Cloudinary + Google), and broke behind firewalls that block
+// Google services.
 function PDFViewer({ fileUrl, fileName }) {
     if (!fileUrl) {
         return (
@@ -86,11 +90,24 @@ function PDFViewer({ fileUrl, fileName }) {
     }
 
     return (
-        <iframe
-            src={`https://docs.google.com/viewer?url=${encodeURIComponent(fileUrl)}&embedded=true`}
-            title={fileName || "PDF Document"}
-            className="w-full h-full border-none"
-        />
+        <object data={fileUrl} type="application/pdf" className="w-full h-full">
+            {/* Fallback for browsers that can't render the <object> (e.g. some
+                mobile browsers) — offer a direct link instead of a blank pane. */}
+            <div className="h-full flex items-center justify-center text-slate-500 text-sm px-6">
+                <div className="text-center space-y-3">
+                    <BookIcon />
+                    <p>Your browser can't preview PDFs inline.</p>
+                    <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-400 hover:text-indigo-300 underline"
+                    >
+                        Open "{fileName || "document"}" in a new tab
+                    </a>
+                </div>
+            </div>
+        </object>
     );
 }
 

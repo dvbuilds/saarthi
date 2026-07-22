@@ -98,7 +98,7 @@ export default function LandingPage() {
         </div>
 
         {/* Floating PDF pill — top-right area (Today's Tasks widget) */}
-        <div className="absolute top-[13%] right-[17%] hidden xl:block bg-white rounded-2xl px-5 py-4 shadow-[0_8px_28px_rgba(10,22,40,0.10)] border border-slate-100 animate-float-alt"
+        <div className="absolute top-[13%] right-[17%] hidden lg:block bg-white rounded-2xl px-5 py-4 shadow-[0_8px_28px_rgba(10,22,40,0.10)] border border-slate-100 animate-float-alt"
              style={{animationDelay:"0.8s"}}>
           <p className="font-syne font-bold text-[11px] text-slate-400 mb-2.5 tracking-wider">TODAY'S TASKS</p>
           {[["💬 Chat with PDF","87%","bg-blue"],["📝 Generate Quiz","62%","bg-yellow"]].map(([lbl,pct,col])=>(
@@ -115,7 +115,7 @@ export default function LandingPage() {
         </div>
 
         {/* Floating flashcard badge — bottom-left */}
-        <div className="absolute bottom-[22%] left-[14%] hidden xl:block bg-white rounded-2xl px-4 py-3 shadow-[0_8px_28px_rgba(10,22,40,0.10)] border border-slate-100 animate-float"
+        <div className="absolute bottom-[22%] left-[14%] hidden lg:block bg-white rounded-2xl px-4 py-3 shadow-[0_8px_28px_rgba(10,22,40,0.10)] border border-slate-100 animate-float"
              style={{animationDelay:"1.5s"}}>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg leading-none">🃏</span>
@@ -125,7 +125,7 @@ export default function LandingPage() {
         </div>
 
         {/* Powered-by badge — bottom-right */}
-        <div className="absolute bottom-[20%] right-[13%] hidden xl:flex flex-col items-center gap-2 bg-white rounded-2xl px-5 py-4 shadow-[0_8px_28px_rgba(10,22,40,0.10)] border border-slate-100 animate-float-alt"
+        <div className="absolute bottom-[20%] right-[13%] hidden lg:flex flex-col items-center gap-2 bg-white rounded-2xl px-5 py-4 shadow-[0_8px_28px_rgba(10,22,40,0.10)] border border-slate-100 animate-float-alt"
              style={{animationDelay:"0.3s"}}>
           <p className="font-syne font-bold text-[11px] text-slate-400 tracking-wider">POWERED BY</p>
           <div className="flex gap-2 text-2xl">🤖✨📡</div>
@@ -142,21 +142,21 @@ export default function LandingPage() {
           <h1 className="font-syne font-extrabold leading-[1.08] mb-6 animate-fade-up delay-1"
               style={{fontSize:"clamp(42px,7vw,80px)"}}>
             Upload, ask,{" "}
-            <span className="text-slate-300">and ace</span>
+            <span className="text-navy">and ace</span>
             <br />
             <span className="bg-gradient-to-r from-blue to-blue-dark bg-clip-text text-transparent">
               every exam
             </span>
           </h1>
 
-          <p className="font-inter  text-[18px] leading-relaxed text-slate-500 max-w-[600px] mx-auto mb-10 animate-fade-up delay-2 translate-x-20">
+          <p className="font-inter  text-[18px] leading-relaxed text-slate-500 max-w-[600px] mx-auto mb-10 animate-fade-up delay-2">
             Turn any PDF into quizzes, flashcards, summaries, notes, and a smart chat — all in one place.
           </p>
 
           <div className="flex items-center justify-center gap-4 mb-14 animate-fade-up delay-3">
             <Link to="/register"
                   className="px-8 py-4 rounded-[13px] bg-gradient-to-br from-yellow to-yellow-dark font-syne font-bold text-[16px] text-navy no-underline shadow-[0_8px_28px_rgba(245,158,11,0.32)] hover:-translate-y-1 hover:shadow-[0_12px_36px_rgba(245,158,11,0.42)] transition-all duration-250">
-              Get free demo →
+              Start for Free →
             </Link>
             <a href="#how-it-works"
                className="px-7 py-4 rounded-[13px] border-2 border-slate-200 font-syne font-semibold text-[16px] text-slate-600 no-underline bg-white hover:border-blue hover:text-blue transition-all duration-200">
@@ -165,7 +165,7 @@ export default function LandingPage() {
           </div>
 
           <div className="flex justify-center gap-12 animate-fade-up delay-4">
-            {[["10×","Faster studying"],["5+","AI-powered tools"],["100%","Your data, private"]].map(([v,l])=>(
+            {[["Faster","Study sessions"],["5+","AI-powered tools"],["100%","Your data, private"]].map(([v,l])=>(
               <div key={l} className="text-center">
                 <p className="font-syne font-extrabold text-[28px] text-blue">{v}</p>
                 <p className="font-inter text-[13px] text-slate-400 mt-0.5">{l}</p>
@@ -287,11 +287,11 @@ export default function LandingPage() {
             <div className="w-8 h-8 rounded-[8px] bg-gradient-to-br from-blue to-blue-dark flex items-center justify-center text-base leading-none">📚</div>
             <span className="font-syne font-extrabold text-[20px] text-white">Saarthi</span>
           </div>
-          <p className="font-inter text-[14px] text-slate-500">© 2025 Saarthi · Built with ❤️ for students</p>
+          <p className="font-inter text-[14px] text-slate-500">© {new Date().getFullYear()} Saarthi · Built with ❤️ for students</p>
           <div className="flex gap-6">
-            {["Privacy","Terms","Contact"].map(l=>(
-              <a key={l} href="#" className="font-inter text-[14px] text-slate-500 no-underline hover:text-yellow transition-colors duration-200">{l}</a>
-            ))}
+            <Link to="/privacy" className="font-inter text-[14px] text-slate-500 no-underline hover:text-yellow transition-colors duration-200">Privacy</Link>
+            <Link to="/terms" className="font-inter text-[14px] text-slate-500 no-underline hover:text-yellow transition-colors duration-200">Terms</Link>
+            <a href="mailto:support@saarthi.app" className="font-inter text-[14px] text-slate-500 no-underline hover:text-yellow transition-colors duration-200">Contact</a>
           </div>
         </div>
       </footer>

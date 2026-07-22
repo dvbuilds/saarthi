@@ -5,6 +5,10 @@ import ProtectedRoute from './Components/ProtectedRoute.jsx';
 import Landing from './Pages/Landing.jsx';
 import Login from './Pages/Login.jsx';
 import Register from './Pages/Register.jsx';
+import ForgotPassword from './Pages/ForgotPassword.jsx';
+import Terms from './Pages/Terms.jsx';
+import Privacy from './Pages/Privacy.jsx';
+import NotFound from './Pages/NotFound.jsx';
 import Dashboard from './Pages/Dashboard.jsx';
 import ChatPage from './Pages/Chatpage.jsx';
 import QuizPage from './Pages/QuizPage.jsx';
@@ -19,12 +23,16 @@ function App() {
         <Route path='/' element={<Landing />} />
         <Route path='/login' element={<Login />} />
         <Route path='/register' element={<Register />} />
+        <Route path='/forgot-password' element={<ForgotPassword />} />
+        <Route path='/terms' element={<Terms />} />
+        <Route path='/privacy' element={<Privacy />} />
         <Route path='/dashboard' element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/chat/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
         <Route path='/quiz/:id' element={<ProtectedRoute><QuizPage /></ProtectedRoute>} />
         <Route path='/flashcards/:id' element={<ProtectedRoute><FlashcardsPage /></ProtectedRoute>} />
         <Route path='/summary/:id' element={<ProtectedRoute><SummaryPage /></ProtectedRoute>} />
         <Route path='/notes/:id' element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
+        <Route path='*' element={<NotFound />} />
       </Routes>
     </ErrorBoundary>
   )

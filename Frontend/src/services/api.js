@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+// Always call the API through our own origin (/api/...). In dev, vite.config.js
+// proxies /api to localhost:5000; in production, vercel.json rewrites /api/* to
+// the Render backend. This keeps the request same-origin so the auth cookies
+// (SameSite=None; Secure) are treated as 1st-party and Chrome's 3rd-party
+// cookie blocking doesn't strip them.
 const API = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: "/api",
     withCredentials: true,
 });
 

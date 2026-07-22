@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import multer from "multer";
 import connectDB from "./connect/db.js"
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -42,6 +43,21 @@ const startServer = async () => {
     app.get('/', (req, res) => {
         res.json({ message: "Server is running"});
     })
+
+    // Centralized JSON error handler — catches multer file-filter/limit
+    // errors (e.g. non-PDF uploads) and any other errors passed to next(err),
+    // so the client always gets a friendly JSON message instead of Express's
+    // default HTML 500 page.
+    app.use((err, req, res, next) => {
+        if (!err) return next();
+
+        if (err instanceof multer.MulterError) {
+            return res.status(400).json({ message: err.message });
+        }
+
+        console.error(err);
+        return res.status(400).json({ message: err.message || "Something went wrong. Please try again." });
+    });
 
     app.listen(process.env.PORT, () => {
         console.log(`Server is running at PORT ${process.env.PORT}`);

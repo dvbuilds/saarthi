@@ -6,7 +6,7 @@ const fileFilter = (req, file, cb) => {
     if(file.mimetype === "application/pdf") {
         cb(null, true);
     } else{
-        cb(new Errow("Only pdf files are allowed"), false);
+        cb(new Error("Only pdf files are allowed"), false);
     }
 };
 

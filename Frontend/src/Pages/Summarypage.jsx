@@ -24,9 +24,8 @@ export default function SummaryPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { result, loading, error, progress } = useJobPolling(`/summary/${id}`);
+  const { result, loading, error } = useJobPolling(`/summary/${id}`);
   const summary = result || [];
-  const isStillGenerating = loading && summary.length > 0; // NEW
 
   const [copied, setCopied] = useState(false);
 
@@ -37,18 +36,14 @@ export default function SummaryPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Loading (nothing generated yet) ─────────────────────────────────────────
-  if (loading && summary.length === 0) {
+  // ── Loading ───────────────────────────────────────────────────────────────
+  if (loading) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="flex justify-center"><SpinnerIcon /></div>
           <p className="font-inter text-[14px] text-slate-500">Summarizing your document…</p>
-          <p className="font-inter text-[12px] text-slate-400">
-            {progress.total > 0
-              ? `Processing section ${progress.completed} of ${progress.total}…`
-              : "This can take a bit longer for larger documents"}
-          </p>
+          <p className="font-inter text-[12px] text-slate-400">This can take a bit longer for larger documents</p>
         </div>
       </div>
     );
@@ -69,8 +64,8 @@ export default function SummaryPage() {
     );
   }
 
-  // ── Empty result (job finished but produced nothing) ────────────────────────
-  if (!loading && summary.length === 0) {
+  // ── Empty result ──────────────────────────────────────────────────────────
+  if (summary.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_rgba(10,22,40,0.10)] p-10 w-full max-w-[440px] text-center">
@@ -98,9 +93,9 @@ export default function SummaryPage() {
           <BackIcon /> Dashboard
         </button>
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-50 border border-purple-100">
-          <span className={`w-1.5 h-1.5 rounded-full bg-purple-500 ${isStillGenerating ? "animate-pulse" : ""}`} />
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
           <span className="font-inter text-[12.5px] text-purple-700 font-medium">
-            {isStillGenerating ? `${summary.length} points so far…` : `${summary.length} key points`}
+            {summary.length} key points
           </span>
         </div>
         <button
@@ -116,17 +111,6 @@ export default function SummaryPage() {
         <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-2xl mx-auto mb-3">📊</div>
         <h1 className="font-syne font-extrabold text-[24px] text-navy">Document Summary</h1>
         <p className="font-inter text-[13px] text-slate-500 mt-1">Key points extracted from your PDF</p>
-
-        {isStillGenerating && (
-          <div className="flex items-center justify-center gap-2 mt-3">
-            <SpinnerIcon />
-            <p className="font-inter text-[12.5px] text-slate-400">
-              {progress.total > 0
-                ? `Still generating — section ${progress.completed} of ${progress.total}`
-                : "More points on the way…"}
-            </p>
-          </div>
-        )}
       </div>
 
       <div className="px-[5%] pb-12">
