@@ -71,8 +71,9 @@ export default function FlashcardsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { result, loading, error } = useJobPolling(`/flashcards/${id}`);
+  const { result, loading, error, progress } = useJobPolling(`/flashcards/${id}`);
   const flashcards = result || [];
+  const isStillGenerating = loading && flashcards.length > 0; // NEW
 
   const [current, setCurrent] = useState(0);
   const [done, setDone] = useState(false);
@@ -82,9 +83,11 @@ export default function FlashcardsPage() {
   };
 
   const handleNext = () => {
+    // CHANGED: if we're still streaming and the next card hasn't arrived yet,
+    // don't advance into a blank card — just wait for it to land.
     if (current < flashcards.length - 1) {
       setCurrent(c => c + 1);
-    } else {
+    } else if (!isStillGenerating) {
       setDone(true);
     }
   };
@@ -94,14 +97,19 @@ export default function FlashcardsPage() {
     setDone(false);
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-  if (loading) {
+  // ── Loading (nothing generated yet) ─────────────────────────────────────────
+  // CHANGED: only block the whole page before the FIRST card lands.
+  if (loading && flashcards.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="flex justify-center"><SpinnerIcon /></div>
           <p className="font-inter text-[14px] text-slate-500">Generating flashcards from your document…</p>
-          <p className="font-inter text-[12px] text-slate-400">This can take a bit longer for larger documents</p>
+          <p className="font-inter text-[12px] text-slate-400">
+            {progress.total > 0
+              ? `Processing section ${progress.completed} of ${progress.total}…`
+              : "This can take a bit longer for larger documents"}
+          </p>
         </div>
       </div>
     );
@@ -122,8 +130,8 @@ export default function FlashcardsPage() {
     );
   }
 
-  // ── Empty result ──────────────────────────────────────────────────────────
-  if (flashcards.length === 0) {
+  // ── Empty result (job finished but produced nothing) ────────────────────────
+  if (!loading && flashcards.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_rgba(10,22,40,0.10)] p-10 w-full max-w-[440px] text-center">
@@ -176,9 +184,9 @@ export default function FlashcardsPage() {
           <BackIcon /> Dashboard
         </button>
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-green-50 border border-green-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+          <span className={`w-1.5 h-1.5 rounded-full bg-green-500 ${isStillGenerating ? "animate-pulse" : ""}`} />
           <span className="font-inter text-[12.5px] text-green-700 font-medium">
-            {flashcards.length} flashcards
+            {isStillGenerating ? `${flashcards.length} so far…` : `${flashcards.length} flashcards`}
           </span>
         </div>
         <div className="w-20" />
@@ -188,6 +196,17 @@ export default function FlashcardsPage() {
         <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center text-2xl mx-auto mb-3">🃏</div>
         <h1 className="font-syne font-extrabold text-[24px] text-navy">Flashcards</h1>
         <p className="font-inter text-[13px] text-slate-500 mt-1">Tap a card to flip it</p>
+
+        {isStillGenerating && (
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <SpinnerIcon />
+            <p className="font-inter text-[12.5px] text-slate-400">
+              {progress.total > 0
+                ? `Still generating — section ${progress.completed} of ${progress.total}`
+                : "More cards on the way…"}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="px-[5%] mb-8">
@@ -218,9 +237,12 @@ export default function FlashcardsPage() {
           </button>
           <button
             onClick={handleNext}
-            className="flex-1 py-4 rounded-[12px] bg-gradient-to-br from-green-400 to-green-500 font-syne font-bold text-[15px] text-white border-none cursor-pointer shadow-[0_4px_14px_rgba(34,197,94,0.25)] hover:-translate-y-0.5 transition-all duration-200"
+            disabled={current === flashcards.length - 1 && isStillGenerating}
+            className="flex-1 py-4 rounded-[12px] bg-gradient-to-br from-green-400 to-green-500 font-syne font-bold text-[15px] text-white border-none cursor-pointer shadow-[0_4px_14px_rgba(34,197,94,0.25)] hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
           >
-            {current === flashcards.length - 1 ? "Finish 🎉" : "Next →"}
+            {current === flashcards.length - 1
+              ? (isStillGenerating ? "Waiting for more…" : "Finish 🎉")
+              : "Next →"}
           </button>
         </div>
       </div>

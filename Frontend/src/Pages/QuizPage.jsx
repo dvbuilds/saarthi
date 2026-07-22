@@ -15,7 +15,8 @@ const SpinnerIcon = () => (
 );
 
 // ── Count Selector Screen ─────────────────────────────────────────────────────
-function CountSelector({ onStart, loading }) {
+// CHANGED: accepts `progress` to show live chunk progress instead of a static label
+function CountSelector({ onStart, loading, progress }) {
   const [count, setCount] = useState(10);
 
   return (
@@ -36,7 +37,8 @@ function CountSelector({ onStart, loading }) {
               <button
                 key={n}
                 onClick={() => setCount(n)}
-                className={`py-3 rounded-xl font-syne font-bold text-[15px] border-[1.5px] transition-all duration-200
+                disabled={loading}
+                className={`py-3 rounded-xl font-syne font-bold text-[15px] border-[1.5px] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
                   ${count === n
                     ? "bg-amber-400 border-amber-400 text-navy shadow-[0_4px_14px_rgba(245,158,11,0.3)]"
                     : "bg-white border-slate-200 text-slate-600 hover:border-amber-300"}`}
@@ -52,8 +54,9 @@ function CountSelector({ onStart, loading }) {
               min={1}
               max={30}
               value={count}
+              disabled={loading}
               onChange={e => setCount(Math.min(30, Math.max(1, Number(e.target.value))))}
-              className="flex-1 px-4 py-2.5 rounded-xl border-[1.5px] border-slate-200 font-inter text-[14px] text-navy focus:outline-none focus:border-amber-400 transition-colors"
+              className="flex-1 px-4 py-2.5 rounded-xl border-[1.5px] border-slate-200 font-inter text-[14px] text-navy focus:outline-none focus:border-amber-400 transition-colors disabled:opacity-50"
             />
           </div>
         </div>
@@ -65,6 +68,15 @@ function CountSelector({ onStart, loading }) {
         >
           {loading ? <><SpinnerIcon />Generating Quiz…</> : "Generate Quiz →"}
         </button>
+
+        {/* NEW: live progress line while the job is running */}
+        {loading && (
+          <p className="font-inter text-[12px] text-slate-400 mt-4">
+            {progress.total > 0
+              ? `Processing section ${progress.completed} of ${progress.total}…`
+              : "This can take a bit longer for larger documents"}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -339,7 +351,7 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState([]);
 
   // autoStart: false — generation only begins once the user picks a count and hits Generate
-  const { result, loading, error, start } = useJobPolling(`/quiz/${id}`, { autoStart: false });
+  const { result, loading, error, progress, start } = useJobPolling(`/quiz/${id}`, { autoStart: false }); // CHANGED: destructure progress
   const questions = result || [];
 
   const handleStart = async (count) => {
@@ -382,7 +394,7 @@ export default function QuizPage() {
             ⚠️ Couldn't generate quiz questions from this document — it may be too short or unreadable.
           </div>
         )}
-        <CountSelector onStart={handleStart} loading={loading} />
+        <CountSelector onStart={handleStart} loading={loading} progress={progress} />
       </>
     );
   }
