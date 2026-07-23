@@ -28,7 +28,7 @@ const startServer = async () => {
         credentials: true,
     }));
     app.use(express.json());
-    app.use(express.urlencoded({ extended: true}));
+    app.use(express.urlencoded({ extended: true }));
     app.use(cookieParser());
 
     app.use("/api/users", userRoutes);
@@ -41,8 +41,12 @@ const startServer = async () => {
     app.use("/api/jobs", jobRoutes);
 
     app.get('/', (req, res) => {
-        res.json({ message: "Server is running"});
-    })
+        res.json({ message: "Server is running" });
+    });
+
+    app.get('/health', (req, res) => {
+        res.status(200).send('OK');
+    });
 
     // Centralized JSON error handler — catches multer file-filter/limit
     // errors (e.g. non-PDF uploads) and any other errors passed to next(err),
