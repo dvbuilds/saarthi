@@ -124,9 +124,13 @@ export const refreshAccessToken = async (req, res) => {
 
         const incomingHash = hashToken(refreshToken);
 
-        if (incomingHash !== user.refreshTokenHash) {
-            // token doesn't match what's stored — possible theft/reuse, kill the session
+        const isCurrentToken = incomingHash === user.refreshTokenHash;
+        const isPreviousToken = incomingHash === user.previousRefreshTokenHash;
+
+        if (!isCurrentToken && !isPreviousToken) {
+            // token doesn't match current or previous — possible theft/reuse, kill the session
             user.refreshTokenHash = undefined;
+            user.previousRefreshTokenHash = undefined;
             await user.save();
             return res.status(401).json({ message: "Session invalid, please login again" });
         }
@@ -135,6 +139,7 @@ export const refreshAccessToken = async (req, res) => {
         const newAccessToken = generateAccessToken(user);
         const newRefreshToken = generateRefreshToken(user);
 
+        user.previousRefreshTokenHash = user.refreshTokenHash;
         user.refreshTokenHash = hashToken(newRefreshToken);
         await user.save();
 
@@ -155,7 +160,9 @@ export const logout = async (req, res) => {
         if (refreshToken) {
             try {
                 const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-                await User.findByIdAndUpdate(decoded.userId, { $unset: { refreshTokenHash: 1 } });
+                await User.findByIdAndUpdate(decoded.userId, {
+                    $unset: { refreshTokenHash: 1, previousRefreshTokenHash: 1 }
+                });
             } catch (error) {
                 // token already invalid/expired — nothing to clean up in DB
             }
