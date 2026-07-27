@@ -34,6 +34,15 @@ const documentSchema = new mongoose.Schema({
             content: String,
         }
     ],
+    sections: {
+        type: [{
+            index: Number,
+            title: String,
+            pageStart: Number,
+            pageEnd: Number,
+        }],
+        default: [],
+    },
     chatHistory: [
         {
             role: {

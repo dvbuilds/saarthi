@@ -4,8 +4,14 @@ import { redisConnection } from "../config/redisConnection.js";
 import { Document } from "../models/Document.js";
 import { GenerationJob } from "../models/GenerationJob.js";
 import { extractPdfText } from "../services/extractPdfText.js";
+import { generateSectionTitles } from "../services/generateSectionTitles.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// Standardized across all four types so "section 12" means the same page
+// range regardless of whether you're generating flashcards, quiz, notes,
+// or summary. One section list per document, reused everywhere.
+const CHUNK_SIZE = 5;
 
 const buildPrompt = (type, pdfContext, questionsPerChunk) => {
     switch (type) {
@@ -95,11 +101,19 @@ export const startWorkers = () => {
 
             try {
                 const pages = await extractPdfText(fileUrl);
+
+                // Generate section titles once, right after extraction.
+                // Cached on the document — reused by every future
+                // quiz/flashcards/notes/summary generation for this PDF.
+                console.log(`[worker] Generating section titles for document ${documentId}`);
+                const sections = await generateSectionTitles(pages, CHUNK_SIZE);
+
                 await Document.findByIdAndUpdate(documentId, {
                     extractedText: pages,
+                    sections,
                     status: "ready",
                 });
-                console.log(`[worker] Document ${documentId} is ready`);
+                console.log(`[worker] Document ${documentId} is ready with ${sections.length} sections`);
             } catch (error) {
                 console.error(`[worker] Extraction failed for ${documentId}:`, error);
                 await Document.findByIdAndUpdate(documentId, { status: "failed" });
@@ -117,7 +131,7 @@ export const startWorkers = () => {
     const generationWorker = new Worker(
         "ai-generation",
         async (job) => {
-            const { jobRecordId, documentId, type, count } = job.data;
+            const { jobRecordId, documentId, type, count, selectedChunkIndexes } = job.data;
 
             await GenerationJob.findByIdAndUpdate(jobRecordId, { status: "processing" });
 
@@ -127,13 +141,26 @@ export const startWorkers = () => {
 
                 const allPages = [...document.extractedText].sort((a, b) => a.pageNumber - b.pageNumber);
 
-                const chunkSize = (type === "summary" || type === "notes") ? 2 : 5;
-                const chunks = [];
-                for (let i = 0; i < allPages.length; i += chunkSize) {
-                    chunks.push(allPages.slice(i, i + chunkSize));
+                const allChunks = [];
+                for (let i = 0; i < allPages.length; i += CHUNK_SIZE) {
+                    allChunks.push(allPages.slice(i, i + CHUNK_SIZE));
                 }
 
-                // NEW: record total chunk count upfront so the frontend can show "3 of 7" progress
+                // If the user picked specific sections, only process those
+                // chunks. If nothing was passed (or it's empty), fall back
+                // to generating from the whole document — keeps this
+                // backward-compatible with any existing "generate all" flow.
+                const chunks = (Array.isArray(selectedChunkIndexes) && selectedChunkIndexes.length > 0)
+                    ? selectedChunkIndexes
+                        .filter(i => i >= 0 && i < allChunks.length)
+                        .sort((a, b) => a - b)
+                        .map(i => allChunks[i])
+                    : allChunks;
+
+                if (chunks.length === 0) {
+                    throw new Error("No valid sections selected");
+                }
+
                 await GenerationJob.findByIdAndUpdate(jobRecordId, {
                     totalChunks: chunks.length,
                     completedChunks: 0,
@@ -178,9 +205,6 @@ export const startWorkers = () => {
                     batchResults.forEach(r => allResults.push(...r));
                     chunksDone += batch.length;
 
-                    // NEW: push partial results after every batch, not just at the end.
-                    // Skip this for "quiz" — it gets shuffled/sliced only at the very end,
-                    // so streaming mid-job would show an incomplete/misleading question set.
                     if (type !== "quiz") {
                         await GenerationJob.findByIdAndUpdate(jobRecordId, {
                             result: allResults,

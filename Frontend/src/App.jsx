@@ -15,6 +15,7 @@ import QuizPage from './Pages/QuizPage.jsx';
 import FlashcardsPage from './Pages/Flashcardpage.jsx';
 import SummaryPage from './Pages/Summarypage.jsx';
 import NotesPage from './Pages/Notespage.jsx';
+import TopicSelector from './Pages/Topicselector.jsx';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
         <Route path='/flashcards/:id' element={<ProtectedRoute><FlashcardsPage /></ProtectedRoute>} />
         <Route path='/summary/:id' element={<ProtectedRoute><SummaryPage /></ProtectedRoute>} />
         <Route path='/notes/:id' element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
+        <Route path='/topic' element={<ProtectedRoute><TopicSelector /></ProtectedRoute>} />
         <Route path='*' element={<NotFound />} />
       </Routes>
     </ErrorBoundary>
