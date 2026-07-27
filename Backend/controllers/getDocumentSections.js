@@ -1,12 +1,13 @@
 import { Document } from "../models/Document.js";
 import { handleServerError } from "../utils/handleServerError.js";
 
-// GET /documents/:documentId/sections
+// GET /api/upload/:id/sections
 export const getDocumentSections = async (req, res) => {
     try {
-        const { documentId } = req.params;
-
-        const document = await Document.findById(documentId).select("sections status");
+        const document = await Document.findOne({
+            _id: req.params.id,
+            uploadedBy: req.user._id,
+        }).select("sections status");
 
         if (!document) {
             return res.status(404).json({ message: "Document not found" });

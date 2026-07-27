@@ -1,20 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
-
-const TOPICS = [
-  "Chapter 1: Introduction to Data Communication",
-  "Chapter 2: Network Topologies",
-  "Chapter 3: OSI Reference Model",
-  "Chapter 4: TCP/IP Protocol Suite",
-  "Chapter 5: Physical Layer Transmission",
-  "Chapter 6: Data Link Layer",
-  "Chapter 7: Error Detection & Correction",
-  "Chapter 8: Multiple Access Protocols",
-  "Chapter 9: Network Layer & Routing",
-  "Chapter 10: Transport Layer Protocols",
-  "Chapter 11: Application Layer Services",
-  "Chapter 12: Network Security Basics",
-];
+import API from "../services/api.js";
 
 const COLORS = {
   navy: "#0F172A",
@@ -28,12 +15,42 @@ const COLORS = {
 };
 
 export default function TopicSelector() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [sections, setSections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selected, setSelected] = useState(new Set());
   const [activeIndex, setActiveIndex] = useState(0);
   const trackRef = useRef(null);
   const cardRefs = useRef([]);
 
-  const allSelected = selected.size === TOPICS.length;
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchSections = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await API.get(`/upload/${id}/sections`);
+        if (cancelled) return;
+        setSections(res.data.sections || []);
+      } catch (err) {
+        if (cancelled) return;
+        setError(
+          err.response?.data?.message || "Couldn't load sections for this document."
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchSections();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const allSelected = sections.length > 0 && selected.size === sections.length;
   const someSelected = selected.size > 0 && !allSelected;
 
   const toggleTopic = (i) => {
@@ -45,7 +62,7 @@ export default function TopicSelector() {
   };
 
   const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(TOPICS.map((_, i) => i)));
+    setSelected(allSelected ? new Set() : new Set(sections.map((s) => s.index)));
   };
 
   const updateActiveCard = useCallback(() => {
@@ -82,7 +99,7 @@ export default function TopicSelector() {
       track.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(raf);
     };
-  }, [updateActiveCard]);
+  }, [updateActiveCard, sections]);
 
   // click-and-drag scrolling
   const dragState = useRef({ isDown: false, startX: 0, startScroll: 0 });
@@ -105,6 +122,31 @@ export default function TopicSelector() {
     dragState.current.isDown = false;
     if (trackRef.current) trackRef.current.style.cursor = "grab";
   };
+
+  const handleGenerate = () => {
+    navigate(`/flashcards/${id}`, {
+      state: { selectedChunkIndexes: Array.from(selected) },
+    });
+  };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", color: COLORS.navyMuted, fontFamily: "-apple-system, sans-serif" }}>
+        Loading sections…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ minHeight: "60vh", display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, sans-serif" }}>
+        <p style={{ color: "#DC2626" }}>{error}</p>
+        <button onClick={() => navigate("/dashboard")} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+          ← Back to Dashboard
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -144,7 +186,7 @@ export default function TopicSelector() {
               color: COLORS.navyMuted,
             }}
           >
-            {selected.size} of {TOPICS.length} selected
+            {selected.size} of {sections.length} selected
           </p>
         </div>
 
@@ -196,14 +238,14 @@ export default function TopicSelector() {
           div::-webkit-scrollbar { display: none; }
         `}</style>
 
-        {TOPICS.map((topic, i) => {
+        {sections.map((section, i) => {
           const isActive = i === activeIndex;
-          const isChecked = selected.has(i);
+          const isChecked = selected.has(section.index);
           return (
             <div
-              key={i}
+              key={section.index}
               ref={(el) => (cardRefs.current[i] = el)}
-              onClick={() => toggleTopic(i)}
+              onClick={() => toggleTopic(section.index)}
               style={{
                 position: "relative",
                 flex: "0 0 auto",
@@ -236,7 +278,7 @@ export default function TopicSelector() {
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleTopic(i);
+                  toggleTopic(section.index);
                 }}
               >
                 <Checkbox checked={isChecked} />
@@ -253,7 +295,7 @@ export default function TopicSelector() {
                   width: "fit-content",
                 }}
               >
-                {String(i + 1).padStart(2, "0")}
+                {`p.${section.pageStart}-${section.pageEnd}`}
               </span>
 
               <p
@@ -266,11 +308,31 @@ export default function TopicSelector() {
                   transition: "font-size 320ms cubic-bezier(0.22, 1, 0.36, 1)",
                 }}
               >
-                {topic}
+                {section.title}
               </p>
             </div>
           );
         })}
+      </div>
+
+      <div style={{ padding: "8px 28px 0", display: "flex", justifyContent: "center" }}>
+        <button
+          onClick={handleGenerate}
+          disabled={selected.size === 0}
+          style={{
+            padding: "14px 32px",
+            borderRadius: 12,
+            border: "none",
+            background: selected.size === 0 ? "#CBD5E1" : COLORS.blue,
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: 15,
+            cursor: selected.size === 0 ? "not-allowed" : "pointer",
+            transition: "background 180ms ease",
+          }}
+        >
+          Generate Flashcards {selected.size > 0 ? `(${selected.size} section${selected.size > 1 ? "s" : ""})` : ""}
+        </button>
       </div>
     </div>
   );

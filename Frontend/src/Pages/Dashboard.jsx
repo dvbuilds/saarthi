@@ -125,7 +125,7 @@ export default function DashboardPage() {
     }
 
     else if(tool.id === 'flashcards') {
-      navigate(`/flashcards/${selectedDoc._id}`);
+      navigate(`/topic/${selectedDoc._id}`);
       return;
     }
 

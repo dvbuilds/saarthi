@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useJobPolling } from "../hooks/useJobPolling.js";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -70,9 +70,20 @@ function Flashcard({ card, index, total }) {
 export default function FlashcardsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const { result, loading, error } = useJobPolling(`/flashcards/${id}`);
+  // Comes from the section picker (Topicselector.jsx). If the page is
+  // reached directly without going through the picker, this is undefined
+  // and the worker falls back to generating from the whole document.
+  const selectedChunkIndexes = location.state?.selectedChunkIndexes;
+
+  const { result, loading, error, start } = useJobPolling(`/flashcards/${id}`, { autoStart: false });
   const flashcards = result || [];
+
+  useEffect(() => {
+    start({ selectedChunkIndexes });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const [current, setCurrent] = useState(0);
   const [done, setDone] = useState(false);

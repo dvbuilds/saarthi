@@ -45,6 +45,7 @@ export const uploadDocument = async (req, res) => {
                         fileHash,
                         status: "ready",
                         extractedText: cachedDocument.extractedText,
+                        sections: cachedDocument.sections,
                     });
 
                     console.log(`[upload] Reused cached extraction for hash ${fileHash.slice(0, 8)}…`);

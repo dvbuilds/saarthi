@@ -4,7 +4,7 @@ import { redisConnection } from "../config/redisConnection.js";
 import { Document } from "../models/Document.js";
 import { GenerationJob } from "../models/GenerationJob.js";
 import { extractPdfText } from "../services/extractPdfText.js";
-import { generateSectionTitles } from "../services/generateSectionTitles.js";
+import { generateSectionTitles } from "../services/generateActionTitle.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -13,7 +13,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 // or summary. One section list per document, reused everywhere.
 const CHUNK_SIZE = 5;
 
-const buildPrompt = (type, pdfContext, questionsPerChunk) => {
+const buildPrompt = (type, pdfContext, questionsPerChunk, contentType) => {
     switch (type) {
         case "quiz":
             return `You are a quiz generator. Based on the excerpt below, generate exactly ${questionsPerChunk} multiple choice questions.
@@ -67,6 +67,33 @@ DOCUMENT EXCERPT:
 ${pdfContext}`;
 
         case "notes":
+            // "structured" excerpts are already close to note form (short
+            // bullets/lines, minimal prose) — running the full synthesis
+            // prompt on these just reformats what's already there ("notes
+            // of notes"). Use a lighter grouping pass instead. "dense"
+            // excerpts get the original full-synthesis treatment.
+            if (contentType === "structured") {
+                return `The excerpt below is already presented as short points, bullets, or brief definitions — it does not need heavy rewriting. Your job is only to GROUP related points under sensible topic headings and remove exact duplicates. Do not invent new explanations or pad points with extra words that aren't supported by the excerpt.
+
+STRICT RULES:
+- Respond ONLY with a valid JSON array, no markdown, no extra text
+- Each object must have a "topic" and "points" array
+- Reuse the excerpt's own wording where possible — light cleanup only, not rewriting
+- Merge near-duplicate points into one instead of listing both
+- Do NOT include vague headings or empty topics
+
+Respond in this exact format:
+[
+  {
+    "topic": "Topic Name",
+    "points": ["Point 1.", "Point 2."]
+  }
+]
+
+DOCUMENT EXCERPT:
+${pdfContext}`;
+            }
+
             return `You are a study notes generator. Convert the document excerpt below into structured study notes.
 
 STRICT RULES:
@@ -143,13 +170,19 @@ export const startWorkers = () => {
 
                 const allChunks = [];
                 for (let i = 0; i < allPages.length; i += CHUNK_SIZE) {
-                    allChunks.push(allPages.slice(i, i + CHUNK_SIZE));
+                    allChunks.push({
+                        chunkIndex: allChunks.length,
+                        pages: allPages.slice(i, i + CHUNK_SIZE),
+                    });
                 }
 
                 // If the user picked specific sections, only process those
                 // chunks. If nothing was passed (or it's empty), fall back
                 // to generating from the whole document — keeps this
                 // backward-compatible with any existing "generate all" flow.
+                // Each chunk keeps its original chunkIndex through this
+                // filter so it can still be matched back to its
+                // document.sections entry (for contentType, used by notes).
                 const chunks = (Array.isArray(selectedChunkIndexes) && selectedChunkIndexes.length > 0)
                     ? selectedChunkIndexes
                         .filter(i => i >= 0 && i < allChunks.length)
@@ -180,11 +213,15 @@ export const startWorkers = () => {
                     const batchResults = await Promise.all(
                         batch.map(async (chunk) => {
                             const isShortForm = type === "quiz" || type === "flashcards";
-                            const pdfContext = chunk
+                            const pdfContext = chunk.pages
                                 .map(p => `[Page ${p.pageNumber}]\n${isShortForm ? p.content.slice(0, 800) : p.content}`)
                                 .join("\n\n");
 
-                            const prompt = buildPrompt(type, pdfContext, questionsPerChunk);
+                            const contentType = type === "notes"
+                                ? (document.sections?.[chunk.chunkIndex]?.contentType || "dense")
+                                : null;
+
+                            const prompt = buildPrompt(type, pdfContext, questionsPerChunk, contentType);
 
                             try {
                                 const completion = await groq.chat.completions.create({

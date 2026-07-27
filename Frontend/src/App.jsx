@@ -33,7 +33,7 @@ function App() {
         <Route path='/flashcards/:id' element={<ProtectedRoute><FlashcardsPage /></ProtectedRoute>} />
         <Route path='/summary/:id' element={<ProtectedRoute><SummaryPage /></ProtectedRoute>} />
         <Route path='/notes/:id' element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
-        <Route path='/topic' element={<ProtectedRoute><TopicSelector /></ProtectedRoute>} />
+        <Route path='/topic/:id' element={<ProtectedRoute><TopicSelector /></ProtectedRoute>} />
         <Route path='*' element={<NotFound />} />
       </Routes>
     </ErrorBoundary>

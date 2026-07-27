@@ -6,6 +6,7 @@ import { handleServerError } from "../utils/handleServerError.js";
 export const generateFlashcards = async (req, res) => {
     try {
         const docId = req.params.id;
+        const { selectedChunkIndexes } = req.body;
 
         const document = await Document.findOne({
             _id: docId,
@@ -31,6 +32,7 @@ export const generateFlashcards = async (req, res) => {
             jobRecordId: generationJob._id.toString(),
             documentId: document._id.toString(),
             type: "flashcards",
+            selectedChunkIndexes,
         });
 
         return res.status(202).json({

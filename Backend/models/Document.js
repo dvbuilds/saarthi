@@ -38,6 +38,11 @@ const documentSchema = new mongoose.Schema({
         type: [{
             index: Number,
             title: String,
+            contentType: {
+                type: String,
+                enum: ["dense", "structured"],
+                default: "dense",
+            },
             pageStart: Number,
             pageEnd: Number,
         }],
