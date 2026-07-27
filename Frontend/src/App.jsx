@@ -6,6 +6,7 @@ import Landing from './Pages/Landing.jsx';
 import Login from './Pages/Login.jsx';
 import Register from './Pages/Register.jsx';
 import ForgotPassword from './Pages/ForgotPassword.jsx';
+import ResetPassword from './Pages/ResetPassword.jsx';
 import Terms from './Pages/Terms.jsx';
 import Privacy from './Pages/Privacy.jsx';
 import NotFound from './Pages/NotFound.jsx';
@@ -25,6 +26,7 @@ function App() {
         <Route path='/login' element={<Login />} />
         <Route path='/register' element={<Register />} />
         <Route path='/forgot-password' element={<ForgotPassword />} />
+        <Route path='/reset-password/:token' element={<ResetPassword />} />
         <Route path='/terms' element={<Terms />} />
         <Route path='/privacy' element={<Privacy />} />
         <Route path='/dashboard' element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -40,4 +42,4 @@ function App() {
   )
 }
 
-export default App
+export default App;

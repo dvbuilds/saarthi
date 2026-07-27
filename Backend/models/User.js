@@ -26,7 +26,15 @@ const userSchema = new mongoose.Schema({
     previousRefreshTokenHash: {
         type: String,
         default: undefined,
-    }
+    },
+    resetTokenHash: {
+        type: String,
+        default: undefined,
+    },
+    resetTokenExpiry: {
+        type: Date,
+        default: undefined,
+    },
 
 }, { timestamps: true })
 

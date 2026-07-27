@@ -1,8 +1,10 @@
-import { User } from "../models/User.js";
+    import { User } from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { handleServerError } from "../utils/handleServerError.js";
 import { generateAccessToken, generateRefreshToken, hashToken } from "../utils/generateTokens.js";
+import { sendResetPasswordEmail } from "../utils/sendEmail.js";
 
 const accessTokenOptions = {
     httpOnly: true,
@@ -200,3 +202,84 @@ export const getCurrentUser = async (req, res) => {
         return handleServerError(res, error, "Couldn't fetch user details.");
     }
 }
+
+export const forgotPassword = async (req, res) => {
+    // Always return the same generic message whether or not the account
+    // exists — prevents this endpoint from being used to check which
+    // emails are registered.
+    const GENERIC_MESSAGE = "If an account exists for this email, we've sent a password reset link.";
+
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(200).json({ message: GENERIC_MESSAGE });
+        }
+
+        const rawToken = crypto.randomBytes(32).toString("hex");
+
+        user.resetTokenHash = hashToken(rawToken);
+        user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+        await user.save();
+
+        try {
+            await sendResetPasswordEmail(user.email, rawToken);
+        } catch (emailError) {
+            // Log the real failure server-side (SMTP misconfig, provider
+            // outage, etc) but don't leak it to the client — same generic
+            // response either way.
+            console.error("[forgotPassword] Failed to send reset email:", emailError.message);
+        }
+
+        return res.status(200).json({ message: GENERIC_MESSAGE });
+
+    } catch (error) {
+        return handleServerError(res, error, "Couldn't process your request. Please try again.");
+    }
+}
+
+export const resetPassword = async (req, res) => {
+    try {
+        const { token } = req.params;
+        const { password } = req.body;
+
+        if (!password || password.length < 8) {
+            return res.status(400).json({ message: "Password must be at least 8 characters" });
+        }
+
+        const incomingHash = hashToken(token);
+
+        const user = await User.findOne({
+            resetTokenHash: incomingHash,
+            resetTokenExpiry: { $gt: new Date() },
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: "This reset link is invalid or has expired. Please request a new one." });
+        }
+
+        user.password = await bcrypt.hash(password, 8);
+        user.resetTokenHash = undefined;
+        user.resetTokenExpiry = undefined;
+
+        // Resetting the password kills every existing session — same
+        // principle as changing your password anywhere else forcing
+        // re-login on all devices.
+        user.refreshTokenHash = undefined;
+        user.previousRefreshTokenHash = undefined;
+
+        await user.save();
+
+        return res.status(200).json({ message: "Password reset successfully. Please sign in with your new password." });
+
+    } catch (error) {
+        return handleServerError(res, error, "Couldn't reset your password. Please try again.");
+    }
+}
+    
