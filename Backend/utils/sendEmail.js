@@ -1,8 +1,4 @@
-import * as brevo from "@getbrevo/brevo";
-
-// Brevo transactional email API — replaces nodemailer/SMTP.
-// Required env vars: BREVO_API_KEY, BREVO_SENDER_EMAIL, FRONTEND_URL
-// (BREVO_SENDER_EMAIL must be a verified sender in your Brevo account)
+import brevo from "@getbrevo/brevo";
 
 const apiInstance = new brevo.TransactionalEmailsApi();
 apiInstance.setApiKey(
