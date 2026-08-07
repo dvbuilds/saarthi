@@ -25,6 +25,7 @@ export const uploadDocument = async (req, res) => {
             {
                 resource_type: "raw",
                 folder: "saarthi",
+                format: "pdf",
             },
             async (error, result) => {
                 if (error) {
