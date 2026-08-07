@@ -25,7 +25,6 @@ export const uploadDocument = async (req, res) => {
             {
                 resource_type: "raw",
                 folder: "saarthi",
-                flags: "attachment:false",
             },
             async (error, result) => {
                 if (error) {
