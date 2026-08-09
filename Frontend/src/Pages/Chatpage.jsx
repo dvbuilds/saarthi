@@ -304,7 +304,7 @@ export default function ChatPage() {
                     </div>
                     <div className="flex-1 min-h-0">
                         <PDFViewer
-                            fileUrl={doc?.fileUrl?.replace('/upload/', '/upload/fl_attachment:false/')}
+                            fileUrl={doc?.fileUrl}
                             fileName={doc?.fileName}
                         />
                     </div>
