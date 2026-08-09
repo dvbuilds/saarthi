@@ -1,11 +1,11 @@
 import { Document } from '../models/Document.js';
-import { GenerationJob } from "../models/GenerationJob.js";
-import { generationQueue } from "../queues/generationQueue.js";
+import { createOrReuseGenerationJob } from "../services/generationJobService.js";
 import { handleServerError } from '../utils/handleServerError.js';
 
 export const generateNotes = async (req, res) => {
     try {
         const docId = req.params.id;
+        const { selectedChunkIndexes } = req.body;
 
         const document = await Document.findOne({
             _id: docId,
@@ -20,22 +20,17 @@ export const generateNotes = async (req, res) => {
             return res.status(400).json({ message: "Document still processing" });
         }
 
-        const generationJob = await GenerationJob.create({
-            document: document._id,
-            requestedBy: req.user._id,
+        const { job, reused, cached } = await createOrReuseGenerationJob({
+            userId: req.user._id,
+            documentId: document._id,
             type: "notes",
-            status: "queued",
-        });
-
-        await generationQueue.add("generate", {
-            jobRecordId: generationJob._id.toString(),
-            documentId: document._id.toString(),
-            type: "notes",
+            selectedChunkIndexes,
+            fileHash: document.fileHash,
         });
 
         return res.status(202).json({
-            message: "Notes generation started",
-            jobId: generationJob._id,
+            message: cached ? "Notes ready instantly (matched a cached result)" : reused ? "Reconnected to an in-progress generation" : "Notes generation started",
+            jobId: job._id,
         });
     } catch (error) {
         return handleServerError(res, error, "Couldn't generate content. Please try again.");

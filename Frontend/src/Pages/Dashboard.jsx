@@ -34,7 +34,10 @@ export default function DashboardPage() {
     d.fileName.toLowerCase().includes(search.trim().toLowerCase())
   );
 
-  useEffect(() => { fetchDocuments(); }, []);
+  useEffect(() => {
+    fetchDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -65,7 +68,7 @@ export default function DashboardPage() {
     try {
       const formData = new FormData();
       formData.append("pdf", file);
-      const { data } = await API.post("/upload", formData);
+      await API.post("/upload", formData);
       setToast({ type: "success", msg: `"${file.name}" uploaded successfully.` });
       fetchDocuments();
     } catch (err) {

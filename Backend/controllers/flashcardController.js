@@ -1,6 +1,5 @@
 import { Document } from "../models/Document.js";
-import { GenerationJob } from "../models/GenerationJob.js";
-import { generationQueue } from "../queues/generationQueue.js";
+import { createOrReuseGenerationJob } from "../services/generationJobService.js";
 import { handleServerError } from "../utils/handleServerError.js";
 
 export const generateFlashcards = async (req, res) => {
@@ -21,23 +20,17 @@ export const generateFlashcards = async (req, res) => {
             return res.status(400).json({ message: "Document still processing" });
         }
 
-        const generationJob = await GenerationJob.create({
-            document: document._id,
-            requestedBy: req.user._id,
-            type: "flashcards",
-            status: "queued",
-        });
-
-        await generationQueue.add("generate", {
-            jobRecordId: generationJob._id.toString(),
-            documentId: document._id.toString(),
+        const { job, reused, cached } = await createOrReuseGenerationJob({
+            userId: req.user._id,
+            documentId: document._id,
             type: "flashcards",
             selectedChunkIndexes,
+            fileHash: document.fileHash,
         });
 
         return res.status(202).json({
-            message: "Flashcard generation started",
-            jobId: generationJob._id,
+            message: cached ? "Flashcards ready instantly (matched a cached result)" : reused ? "Reconnected to an in-progress generation" : "Flashcard generation started",
+            jobId: job._id,
         });
     } catch (error) {
         return handleServerError(res, error, "Couldn't generate content. Please try again.")

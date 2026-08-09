@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useJobPolling } from "../hooks/useJobPolling.js";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -70,20 +70,24 @@ function Flashcard({ card, index, total }) {
 export default function FlashcardsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  // Comes from the section picker (Topicselector.jsx). If the page is
-  // reached directly without going through the picker, this is undefined
-  // and the worker falls back to generating from the whole document.
-  const selectedChunkIndexes = location.state?.selectedChunkIndexes;
+  // Comes from the section picker (Topicselector.jsx), persisted in the URL
+  // itself (not router state) so it survives a hard refresh. Combined with
+  // the backend's idempotent job creation, this means refreshing mid-
+  // generation reconnects to the same job instead of restarting it.
+  const sectionsParam = searchParams.get("sections");
+  const selectedChunkIndexes = sectionsParam
+    ? sectionsParam.split(",").map(Number).filter((n) => !Number.isNaN(n))
+    : undefined;
 
-  const { result, loading, error, start } = useJobPolling(`/flashcards/${id}`, { autoStart: false });
+  const { result, loading, error, progress, start, cancel } = useJobPolling(`/flashcards/${id}`, { autoStart: false });
   const flashcards = result || [];
 
   useEffect(() => {
     start({ selectedChunkIndexes });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, sectionsParam]);
 
   const [current, setCurrent] = useState(0);
   const [done, setDone] = useState(false);
@@ -107,12 +111,37 @@ export default function FlashcardsPage() {
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
+    const hasProgress = progress.total > 0;
+    const percent = hasProgress ? Math.round((progress.completed / progress.total) * 100) : 0;
+
     return (
-      <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center">
-        <div className="text-center space-y-4">
+      <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
+        <div className="text-center space-y-4 w-full max-w-[360px]">
           <div className="flex justify-center"><SpinnerIcon /></div>
           <p className="font-inter text-[14px] text-slate-500">Generating flashcards from your document…</p>
+
+          {hasProgress && (
+            <>
+              <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-500"
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
+              <p className="font-inter text-[12px] text-slate-400">
+                {progress.completed} of {progress.total} sections ({percent}%)
+              </p>
+            </>
+          )}
+
           <p className="font-inter text-[12px] text-slate-400">This can take a bit longer for larger documents</p>
+
+          <button
+            onClick={cancel}
+            className="font-inter text-[12.5px] text-slate-400 hover:text-red-500 underline transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     );

@@ -18,6 +18,13 @@ const refreshTokenOptions = {
     secure: true,
     sameSite: "none",
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    // Restricting the path means this cookie is only ever transmitted to
+    // the refresh endpoint itself — not to every other authenticated
+    // request (uploads, generation triggers, etc). A 30-day-lived
+    // credential shouldn't travel further than it has to. Setting it here
+    // covers every res.cookie()/res.clearCookie() call that reuses this
+    // object, so set and clear stay consistent automatically.
+    path: "/api/users/refresh",
 };
 
 export const register = async (req, res) => {
@@ -28,12 +35,16 @@ export const register = async (req, res) => {
             return res.status(400).json({ message: "Fill required fields" });
         }
 
+        if (password.length < 8) {
+            return res.status(400).json({ message: "Password must be at least 8 characters" });
+        }
+
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(409).json({ message: "User already exists" });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 8);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         const user = await User.create({
             fullName,
@@ -84,15 +95,6 @@ export const login = async (req, res) => {
         user.refreshTokenHash = hashToken(refreshToken);
         await user.save();
 
-        res.clearCookie(
-            "token",
-            {
-                httpOnly: true,
-                secure: true,
-                sameSite: "none"
-            }
-        )
-
         res.cookie("accessToken", accessToken, accessTokenOptions);
         res.cookie("refreshToken", refreshToken, refreshTokenOptions);
 
@@ -113,7 +115,7 @@ export const refreshAccessToken = async (req, res) => {
 
         let decoded;
         try {
-            decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+            decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, { algorithms: ["HS256"] });
         } catch (error) {
             return res.status(401).json({ message: "Invalid or expired refresh token" });
         }
@@ -161,7 +163,7 @@ export const logout = async (req, res) => {
 
         if (refreshToken) {
             try {
-                const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+                const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, { algorithms: ["HS256"] });
                 await User.findByIdAndUpdate(decoded.userId, {
                     $unset: { refreshTokenHash: 1, previousRefreshTokenHash: 1 }
                 });
@@ -170,14 +172,6 @@ export const logout = async (req, res) => {
             }
         }
 
-        res.clearCookie(
-            "token",
-            {
-                httpOnly: true,
-                secure: true,
-                sameSite: "none",
-            }
-        )
         res.clearCookie("accessToken", accessTokenOptions);
         res.clearCookie("refreshToken", refreshTokenOptions);
 
@@ -264,7 +258,7 @@ export const resetPassword = async (req, res) => {
             return res.status(400).json({ message: "This reset link is invalid or has expired. Please request a new one." });
         }
 
-        user.password = await bcrypt.hash(password, 8);
+        user.password = await bcrypt.hash(password, 10);
         user.resetTokenHash = undefined;
         user.resetTokenExpiry = undefined;
 

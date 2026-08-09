@@ -12,6 +12,7 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
 
     const cancelledRef = useRef(false);
     const timeoutRef = useRef(null);
+    const jobIdRef = useRef(null);
 
     const poll = useCallback(async (jobId, startedAt) => {
         if (cancelledRef.current) return;
@@ -48,6 +49,9 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
             } else if (status === "failed") {
                 setError(jobError || "Something went wrong while generating this.");
                 setLoading(false);
+            } else if (status === "cancelled") {
+                setError("Generation was cancelled.");
+                setLoading(false);
             } else {
                 timeoutRef.current = setTimeout(() => poll(jobId, startedAt), POLL_INTERVAL);
             }
@@ -76,6 +80,7 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
                 return;
             }
 
+            jobIdRef.current = jobId;
             poll(jobId, Date.now());
         } catch (err) {
             if (!cancelledRef.current) {
@@ -84,6 +89,25 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
             }
         }
     }, [startUrl, poll]);
+
+    const cancel = useCallback(async () => {
+        const jobId = jobIdRef.current;
+        cancelledRef.current = true;
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+        setLoading(false);
+        setError("Generation cancelled.");
+
+        if (jobId) {
+            try {
+                await API.post(`/jobs/${jobId}/cancel`);
+            } catch {
+                // Best-effort — even if this request fails (e.g. job already
+                // finished server-side right as the user clicked Cancel),
+                // the UI has already stopped polling, which is what matters.
+            }
+        }
+    }, []);
 
     useEffect(() => {
         if (autoStart) {
@@ -96,5 +120,5 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [startUrl]);
 
-    return { result, loading, error, progress, start }; // NEW: progress exposed
+    return { result, loading, error, progress, start, cancel };
 }

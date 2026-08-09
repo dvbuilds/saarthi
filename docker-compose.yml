@@ -1,0 +1,106 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./Backend
+    command: node --import ./tracing.js server.js
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./Backend/.env
+    environment:
+      # Overrides whatever MONGODB_URI/REDIS_URL your .env is normally
+      # configured with (Atlas, a managed Redis, etc.) to point at this
+      # compose network's own containers instead. environment: here takes
+      # precedence over the same keys loaded from env_file above.
+      PORT: 5000
+      MONGODB_URI: mongodb://mongo:27017/saarthi
+      REDIS_URL: redis://redis:6379
+      # Required, not cosmetic: the Dockerfile installs with --omit=dev,
+      # which excludes pino-pretty (dev-only). logger.js only skips trying
+      # to load that transport when NODE_ENV === "production" — without
+      # this, the container crashes at logger initialization looking for a
+      # package that was deliberately never installed. Verified by
+      # reproducing the exact failure locally before adding this fix.
+      NODE_ENV: production
+    depends_on:
+      - mongo
+      - redis
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health', r => process.exit(r.statusCode===200?0:1)).on('error', ()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  worker:
+    build:
+      context: ./Backend
+    command: node --import ./tracing.js worker.js
+    restart: unless-stopped
+    env_file:
+      - ./Backend/.env
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/saarthi
+      REDIS_URL: redis://redis:6379
+      # See the api service's comment above — same reasoning applies here,
+      # since startWorkers.js imports the same logger.
+      NODE_ENV: production
+    depends_on:
+      - mongo
+      - redis
+    # No HTTP server in this process (see worker.js) — nothing to
+    # healthcheck via HTTP. Scale this independently of the api service:
+    #   docker compose up --scale worker=3
+    # This is #1 (Horizontal Worker Auto Scaling) as a real command, not
+    # just an architectural claim — the worker/API split in Backend/worker.js
+    # and Backend/server.js is what makes this possible.
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      # Default admin/admin is fine for local dev only — this port isn't
+      # meant to be exposed publicly as configured here.
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  mongo-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:

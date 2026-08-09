@@ -26,18 +26,12 @@ const TESTIMONIALS = [
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
-  const [activeFeat, setActiveFeat] = useState(0);
   const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 28);
     window.addEventListener("scroll", fn);
     return () => window.removeEventListener("scroll", fn);
-  }, []);
-
-  useEffect(() => {
-    const t = setInterval(() => setActiveFeat(p => (p + 1) % FEATURES.length), 2600);
-    return () => clearInterval(t);
   }, []);
 
   // Wait for the auth check to finish before deciding whether to redirect —
@@ -216,7 +210,7 @@ export default function LandingPage() {
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {STEPS.map((s,i) => (
+            {STEPS.map((s) => (
               <div key={s.n} className="text-center px-6 py-10">
                 <div className={`w-20 h-20 rounded-[22px] mx-auto mb-6 flex items-center justify-center text-[32px]
                   ${s.yellow

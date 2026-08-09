@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "saarthi-api"
+    # "api" resolves via Docker Compose's internal DNS — same network the
+    # api/worker/mongo/redis services already share.
+    static_configs:
+      - targets: ["api:5000"]

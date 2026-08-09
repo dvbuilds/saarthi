@@ -20,8 +20,17 @@ const generationJobSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ["queued", "processing", "completed", "failed"],
+        enum: ["queued", "processing", "completed", "failed", "cancelled"],
         default: "queued",
+    },
+
+    // Deterministic hash of userId+documentId+type+selection. Lets the
+    // trigger endpoint return an existing active/completed job instead of
+    // creating a duplicate — this is what makes "refresh mid-generation"
+    // reconnect to the same job instead of restarting it.
+    idempotencyKey: {
+        type: String,
+        index: true,
     },
 
     result: {

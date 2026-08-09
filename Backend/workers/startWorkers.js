@@ -3,8 +3,14 @@ import Groq from "groq-sdk";
 import { redisConnection } from "../config/redisConnection.js";
 import { Document } from "../models/Document.js";
 import { GenerationJob } from "../models/GenerationJob.js";
+import { DeadLetterJob } from "../models/DeadLetterJob.js";
 import { extractPdfText } from "../services/extractPdfText.js";
 import { generateSectionTitles } from "../services/generateActionTitle.js";
+import { callGroqWithBreaker } from "../services/groqCircuitBreaker.js";
+import { setCachedResult } from "../services/aiOutputCache.js";
+import { computeSelectionSignature } from "../utils/computeSelectionSignature.js";
+import { logger } from "../utils/logger.js";
+import { generationJobsTotal, generationJobDuration } from "../utils/metrics.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -124,7 +130,7 @@ export const startWorkers = () => {
         "document-processing",
         async (job) => {
             const { documentId, fileUrl } = job.data;
-            console.log(`[worker] Extracting text for document ${documentId}`);
+            logger.info({ documentId }, "Extracting text for document");
 
             try {
                 const pages = await extractPdfText(fileUrl);
@@ -132,7 +138,7 @@ export const startWorkers = () => {
                 // Generate section titles once, right after extraction.
                 // Cached on the document — reused by every future
                 // quiz/flashcards/notes/summary generation for this PDF.
-                console.log(`[worker] Generating section titles for document ${documentId}`);
+                logger.info({ documentId }, "Generating section titles for document");
                 const sections = await generateSectionTitles(pages, CHUNK_SIZE);
 
                 await Document.findByIdAndUpdate(documentId, {
@@ -140,9 +146,9 @@ export const startWorkers = () => {
                     sections,
                     status: "ready",
                 });
-                console.log(`[worker] Document ${documentId} is ready with ${sections.length} sections`);
+                logger.info({ documentId, sectionCount: sections.length }, "Document is ready");
             } catch (error) {
-                console.error(`[worker] Extraction failed for ${documentId}:`, error);
+                logger.error({ documentId, err: error }, "Extraction failed");
                 await Document.findByIdAndUpdate(documentId, { status: "failed" });
                 throw error;
             }
@@ -151,7 +157,7 @@ export const startWorkers = () => {
     );
 
     documentWorker.on("failed", (job, err) => {
-        console.error(`[worker] Extraction job ${job.id} failed:`, err.message);
+        logger.error({ jobId: job.id, err }, "Extraction job failed");
     });
 
     // ---------- AI generation worker ----------
@@ -159,6 +165,13 @@ export const startWorkers = () => {
         "ai-generation",
         async (job) => {
             const { jobRecordId, documentId, type, count, selectedChunkIndexes } = job.data;
+
+            const jobRecord = await GenerationJob.findById(jobRecordId).select("status");
+            if (!jobRecord || jobRecord.status === "cancelled") {
+                logger.info({ jobRecordId }, "Job was cancelled before processing started — skipping");
+                generationJobsTotal.labels(type, "cancelled").inc();
+                return;
+            }
 
             await GenerationJob.findByIdAndUpdate(jobRecordId, { status: "processing" });
 
@@ -208,6 +221,16 @@ export const startWorkers = () => {
                 let chunksDone = 0;
 
                 for (let i = 0; i < chunks.length; i += batchSize) {
+                    // Cheap check before spending AI calls on the next batch.
+                    // A user who hit Cancel mid-generation shouldn't keep
+                    // burning Groq requests for chunks nobody will ever see.
+                    const liveJob = await GenerationJob.findById(jobRecordId).select("status");
+                    if (liveJob?.status === "cancelled") {
+                        logger.info({ jobRecordId, chunksDone, totalChunks: chunks.length }, "Job cancelled mid-generation — stopping");
+                        generationJobsTotal.labels(type, "cancelled").inc();
+                        return;
+                    }
+
                     const batch = chunks.slice(i, i + batchSize);
 
                     const batchResults = await Promise.all(
@@ -224,16 +247,30 @@ export const startWorkers = () => {
                             const prompt = buildPrompt(type, pdfContext, questionsPerChunk, contentType);
 
                             try {
-                                const completion = await groq.chat.completions.create({
-                                    model: "llama-3.1-8b-instant",
-                                    messages: [{ role: "user", content: prompt }],
-                                    max_tokens: 1024,
-                                });
+                                const completion = await callGroqWithBreaker(() =>
+                                    groq.chat.completions.create({
+                                        model: "llama-3.1-8b-instant",
+                                        messages: [{ role: "user", content: prompt }],
+                                        max_tokens: 1024,
+                                    })
+                                );
 
                                 const raw = completion.choices[0].message.content;
                                 const clean = raw.replace(/```json|```/g, "").trim();
                                 return JSON.parse(clean);
-                            } catch {
+                            } catch (chunkError) {
+                                // A genuinely open circuit (sustained Groq
+                                // outage) aborts the whole job — retrying
+                                // every remaining chunk against a known-dead
+                                // API just wastes time and produces a job
+                                // full of empty results. A one-off parse
+                                // error or single flaky call on an otherwise
+                                // healthy circuit stays swallowed to []
+                                // (existing behavior) so one bad chunk
+                                // doesn't sink the rest.
+                                if (chunkError.isCircuitBreakerOpen) {
+                                    throw chunkError;
+                                }
                                 return [];
                             }
                         })
@@ -268,22 +305,57 @@ export const startWorkers = () => {
                     completedChunks: chunks.length,
                 });
 
-                console.log(`[worker] Generation job ${jobRecordId} (${type}) completed`);
+                // Cache by content hash, not documentId — so a different
+                // user uploading the exact same PDF gets an instant result
+                // instead of paying for regeneration. See aiOutputCache.js.
+                const selectionSignature = computeSelectionSignature(selectedChunkIndexes);
+                await setCachedResult(document.fileHash, type, selectionSignature, count, allResults);
+
+                logger.info({ jobRecordId, type }, "Generation job completed");
+                generationJobsTotal.labels(type, "completed").inc();
+                generationJobDuration.labels(type).observe((Date.now() - job.timestamp) / 1000);
             } catch (error) {
-                console.error(`[worker] Generation job ${jobRecordId} failed:`, error);
-                await GenerationJob.findByIdAndUpdate(jobRecordId, {
-                    status: "failed",
-                    error: error.message,
-                });
-                throw error;
+                const attemptsMade = job.attemptsMade + 1; // this attempt, about to complete
+                const maxAttempts = job.opts.attempts || 1;
+                const isFinalAttempt = attemptsMade >= maxAttempts;
+
+                logger.error({ jobRecordId, attemptsMade, maxAttempts, err: error }, "Generation job failed");
+
+                if (isFinalAttempt) {
+                    generationJobsTotal.labels(type, "failed").inc();
+
+                    await GenerationJob.findByIdAndUpdate(jobRecordId, {
+                        status: "failed",
+                        error: error.message,
+                    });
+
+                    try {
+                        await DeadLetterJob.create({
+                            jobRecordId,
+                            documentId,
+                            type,
+                            error: error.message,
+                            attemptsMade,
+                        });
+                    } catch (dlqError) {
+                        logger.error({ jobRecordId, err: dlqError }, "Failed to write dead-letter record");
+                    }
+                }
+                // If this isn't the final attempt, deliberately leave the
+                // GenerationJob status as "processing" — BullMQ will retry
+                // with exponential backoff, and the frontend keeps polling
+                // (a false "failed" here would stop the poll loop before
+                // the retry even had a chance to run).
+
+                throw error; // let BullMQ handle the retry/backoff scheduling
             }
         },
         { connection: redisConnection, concurrency: 2 }
     );
 
     generationWorker.on("failed", (job, err) => {
-        console.error(`[worker] Generation job ${job.id} failed:`, err.message);
+        logger.error({ jobId: job.id, err }, "Generation job failed (BullMQ-level)");
     });
 
-    console.log("[worker] Background workers started — listening for jobs...");
+    logger.info("Background workers started — listening for jobs...");
 };

@@ -124,9 +124,8 @@ export default function TopicSelector() {
   };
 
   const handleGenerate = () => {
-    navigate(`/flashcards/${id}`, {
-      state: { selectedChunkIndexes: Array.from(selected) },
-    });
+    const sectionsParam = Array.from(selected).sort((a, b) => a - b).join(",");
+    navigate(`/flashcards/${id}?sections=${sectionsParam}`);
   };
 
   if (loading) {

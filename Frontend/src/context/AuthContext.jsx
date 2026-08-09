@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
             const response = await API.get('/users/me');
             setUser(response.data.user);
             return true;
-        } catch (error) {
+        } catch {
             setUser(null);
             return false;
         } finally {
@@ -73,6 +73,10 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
+// Standard context+consumer-hook co-location pattern (same as React's own
+// docs). Splitting this into its own file would only affect Fast Refresh
+// granularity in dev, not runtime behavior — not worth the churn.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
