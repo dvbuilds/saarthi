@@ -5,7 +5,7 @@ import { handleServerError } from '../utils/handleServerError.js';
 export const generateNotes = async (req, res) => {
     try {
         const docId = req.params.id;
-        const { selectedChunkIndexes } = req.body;
+        const { selectedChunkIndexes } = req.body || {};
 
         const document = await Document.findOne({
             _id: docId,

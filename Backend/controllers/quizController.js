@@ -4,7 +4,7 @@ import { handleServerError } from "../utils/handleServerError.js";
 
 export const generateQuiz = async (req, res) => {
     try {
-        const { count = 10, selectedChunkIndexes } = req.body;
+        const { count = 10, selectedChunkIndexes } = req.body || {};
         const docId = req.params.id;
 
         const document = await Document.findOne({

@@ -111,7 +111,7 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
 
     useEffect(() => {
         if (autoStart) {
-            start();
+            start({});
         }
         return () => {
             cancelledRef.current = true;
