@@ -22,6 +22,18 @@ const addRefreshSubscriber = (callback) => {
     refreshSubscribers.push(callback);
 };
 
+// Endpoints that are themselves part of the auth flow (or public/pre-auth)
+// must never trigger the "access token expired -> refresh -> retry" dance.
+// A 401 from /login is "wrong credentials", not "your session expired" —
+// treating it the same way was the root cause of a bug where a failed
+// login attempt would silently try /refresh (which also 401s, since
+// there's no session yet), then hard-redirect to /login via
+// window.location.href, wiping the just-set error message and looking
+// like an unexplained page refresh.
+const PUBLIC_AUTH_PATHS = ["/users/login", "/users/register", "/users/refresh", "/users/forgot-password", "/users/reset-password"];
+
+const isPublicAuthRequest = (url = "") => PUBLIC_AUTH_PATHS.some((path) => url.includes(path));
+
 API.interceptors.response.use(
     (response) => response,
     async (error) => {
@@ -31,8 +43,10 @@ API.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        // The refresh call itself failed — nothing more to try
-        if (originalRequest.url?.includes('/refresh')) {
+        // The refresh call itself failed, or this 401 came from a public/
+        // pre-auth endpoint (login, register, etc.) — nothing to refresh,
+        // just surface the error to the caller as-is.
+        if (isPublicAuthRequest(originalRequest.url)) {
             isRefreshing = false;
             refreshSubscribers = [];
             return Promise.reject(error);

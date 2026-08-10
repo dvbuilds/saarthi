@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { handleServerError } from "../utils/handleServerError.js";
 import { generateAccessToken, generateRefreshToken, hashToken } from "../utils/generateTokens.js";
 import { sendResetPasswordEmail } from "../utils/sendEmail.js";
+import { isValidEmail, validatePasswordStrength } from "../utils/validators.js";
 
 const accessTokenOptions = {
     httpOnly: true,
@@ -35,8 +36,13 @@ export const register = async (req, res) => {
             return res.status(400).json({ message: "Fill required fields" });
         }
 
-        if (password.length < 8) {
-            return res.status(400).json({ message: "Password must be at least 8 characters" });
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ message: "Please enter a valid email address." });
+        }
+
+        const passwordError = validatePasswordStrength(password);
+        if (passwordError) {
+            return res.status(400).json({ message: passwordError });
         }
 
         const existingUser = await User.findOne({ email });
@@ -74,6 +80,10 @@ export const login = async (req, res) => {
 
         if (!email || !password) {
             return res.status(400).json({ message: "Fill required fields" });
+        }
+
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ message: "Please enter a valid email address." });
         }
 
         const user = await User.findOne({ email });
@@ -243,8 +253,9 @@ export const resetPassword = async (req, res) => {
         const { token } = req.params;
         const { password } = req.body;
 
-        if (!password || password.length < 8) {
-            return res.status(400).json({ message: "Password must be at least 8 characters" });
+        const passwordError = validatePasswordStrength(password);
+        if (passwordError) {
+            return res.status(400).json({ message: passwordError });
         }
 
         const incomingHash = hashToken(token);

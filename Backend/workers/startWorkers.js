@@ -9,15 +9,40 @@ import { generateSectionTitles } from "../services/generateActionTitle.js";
 import { callGroqWithBreaker } from "../services/groqCircuitBreaker.js";
 import { setCachedResult } from "../services/aiOutputCache.js";
 import { computeSelectionSignature } from "../utils/computeSelectionSignature.js";
+import { chunkPages, CHUNK_SIZE } from "../utils/chunking.js";
 import { logger } from "../utils/logger.js";
 import { generationJobsTotal, generationJobDuration } from "../utils/metrics.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Standardized across all four types so "section 12" means the same page
-// range regardless of whether you're generating flashcards, quiz, notes,
-// or summary. One section list per document, reused everywhere.
-const CHUNK_SIZE = 5;
+// Per-page character caps applied when building a chunk's prompt context.
+// Quiz/flashcards only need a taste of each page to write questions, so
+// they stay tight. Summary/notes need more of the actual prose to
+// synthesize well, but were previously UNBOUNDED (raw p.content, no
+// slice) — a single unusually dense or OCR-garbled page could blow a
+// chunk's token budget well past what 5 "normal" pages would use. Capping
+// per page (rather than per chunk) keeps every chunk's worst case
+// predictable regardless of what's actually in the PDF.
+const SHORT_FORM_CHARS_PER_PAGE = 800;   // quiz, flashcards
+const LONG_FORM_CHARS_PER_PAGE = 3000;   // summary, notes
+
+// Maps an internal error into a short, user-safe category. The raw error
+// (with full message/stack) still goes to the structured logger and the
+// dead-letter record below — this is only what reaches the frontend via
+// GenerationJob.error, so a user never sees a stack trace or a raw
+// "Cannot read properties of undefined" style message.
+const toUserFacingError = (error) => {
+    if (error?.isCircuitBreakerOpen) {
+        return "The AI service is temporarily unavailable. Please try again in a minute.";
+    }
+    if (error?.message === "Document not found") {
+        return "This document could not be found.";
+    }
+    if (error?.message === "No valid sections selected") {
+        return "No valid sections were selected. Please pick at least one section and try again.";
+    }
+    return "Generation failed after several attempts. Please try again.";
+};
 
 const buildPrompt = (type, pdfContext, questionsPerChunk, contentType) => {
     switch (type) {
@@ -148,8 +173,19 @@ export const startWorkers = () => {
                 });
                 logger.info({ documentId, sectionCount: sections.length }, "Document is ready");
             } catch (error) {
-                logger.error({ documentId, err: error }, "Extraction failed");
-                await Document.findByIdAndUpdate(documentId, { status: "failed" });
+                const attemptsMade = job.attemptsMade + 1;
+                const maxAttempts = job.opts.attempts || 1;
+                const isFinalAttempt = attemptsMade >= maxAttempts;
+
+                logger.error({ documentId, attemptsMade, maxAttempts, err: error }, "Extraction failed");
+
+                // Only mark the document "failed" once retries are
+                // exhausted — otherwise a transient failure on attempt 1
+                // of 3 would show the user a permanent failure even
+                // though BullMQ is about to retry and may well succeed.
+                if (isFinalAttempt) {
+                    await Document.findByIdAndUpdate(documentId, { status: "failed" });
+                }
                 throw error;
             }
         },
@@ -181,13 +217,7 @@ export const startWorkers = () => {
 
                 const allPages = [...document.extractedText].sort((a, b) => a.pageNumber - b.pageNumber);
 
-                const allChunks = [];
-                for (let i = 0; i < allPages.length; i += CHUNK_SIZE) {
-                    allChunks.push({
-                        chunkIndex: allChunks.length,
-                        pages: allPages.slice(i, i + CHUNK_SIZE),
-                    });
-                }
+                const allChunks = chunkPages(allPages, CHUNK_SIZE);
 
                 // If the user picked specific sections, only process those
                 // chunks. If nothing was passed (or it's empty), fall back
@@ -236,8 +266,9 @@ export const startWorkers = () => {
                     const batchResults = await Promise.all(
                         batch.map(async (chunk) => {
                             const isShortForm = type === "quiz" || type === "flashcards";
+                            const perPageCap = isShortForm ? SHORT_FORM_CHARS_PER_PAGE : LONG_FORM_CHARS_PER_PAGE;
                             const pdfContext = chunk.pages
-                                .map(p => `[Page ${p.pageNumber}]\n${isShortForm ? p.content.slice(0, 800) : p.content}`)
+                                .map(p => `[Page ${p.pageNumber}]\n${p.content.slice(0, perPageCap)}`)
                                 .join("\n\n");
 
                             const contentType = type === "notes"
@@ -326,7 +357,7 @@ export const startWorkers = () => {
 
                     await GenerationJob.findByIdAndUpdate(jobRecordId, {
                         status: "failed",
-                        error: error.message,
+                        error: toUserFacingError(error),
                     });
 
                     try {

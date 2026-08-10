@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../utils/getErrorMessage.js";
+import { isValidEmail } from "../utils/validation.js";
 
 export default function LoginPage() {
   const [form,     setForm]     = useState({ email:"", password:"" });
@@ -23,8 +24,7 @@ export default function LoginPage() {
     if (!form.email || !form.password) { setError("Please fill in all fields."); return; }
 
     // Basic client-side email sanity check — catches typos before hitting the server
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(form.email)) { setError("Please enter a valid email address."); return; }
+    if (!isValidEmail(form.email)) { setError("Please enter a valid email address."); return; }
 
     setLoading(true); setError("");
     try {

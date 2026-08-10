@@ -67,9 +67,18 @@ export const uploadDocument = async (req, res) => {
 
                 // Extraction now happens in the background worker — this request
                 // returns immediately regardless of how many pages the PDF has.
+                // Retries with backoff so a transient failure (a flaky Cloudinary
+                // fetch, a momentary OCR hiccup) doesn't permanently fail a
+                // document that would have succeeded on a second attempt.
                 await documentQueue.add("extract-text", {
                     documentId: document._id.toString(),
                     fileUrl: result.secure_url,
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: "exponential",
+                        delay: 10000,
+                    },
                 });
 
                 return res.status(201).json({

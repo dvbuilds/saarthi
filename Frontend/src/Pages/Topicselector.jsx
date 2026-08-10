@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
 import API from "../services/api.js";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 const COLORS = {
   navy: "#0F172A",
@@ -39,7 +40,7 @@ export default function TopicSelector() {
       } catch (err) {
         if (cancelled) return;
         setError(
-          err.response?.data?.message || "Couldn't load sections for this document."
+          getErrorMessage(err, { 409: "This document is still processing — try again shortly." })
         );
       } finally {
         if (!cancelled) setLoading(false);

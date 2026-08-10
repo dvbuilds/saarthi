@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import API from "../services/api.js";
+import { validatePasswordStrength } from "../utils/validation.js";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 export default function ResetPasswordPage() {
   const { token } = useParams();
@@ -24,6 +26,11 @@ export default function ResetPasswordPage() {
       setError("Passwords don't match.");
       return;
     }
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -31,7 +38,9 @@ export default function ResetPasswordPage() {
       setDone(true);
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
-      setError(err.response?.data?.message || "This reset link is invalid or has expired.");
+      setError(getErrorMessage(err, {
+        400: "This reset link is invalid or has expired. Please request a new one.",
+      }));
     } finally {
       setLoading(false);
     }

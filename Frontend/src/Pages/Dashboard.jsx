@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import API from "../services/api.js";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 const TOOLS = [
   { id: "chat", icon: "💬", title: "Chat with PDF", desc: "Ask anything, get answers sourced from your document.", bg: "bg-blue-50" },
@@ -52,7 +53,7 @@ export default function DashboardPage() {
       setDocuments(data.documents || []);
     } catch (err) {
       if (err.response?.status === 401) { navigate("/login"); return; }
-      setToast({ type: "error", msg: err.response?.data?.message || err.message });
+      setToast({ type: "error", msg: getErrorMessage(err) });
     } finally {
       setLoadingDocs(false);
     }
@@ -69,10 +70,10 @@ export default function DashboardPage() {
       const formData = new FormData();
       formData.append("pdf", file);
       await API.post("/upload", formData);
-      setToast({ type: "success", msg: `"${file.name}" uploaded successfully.` });
+      setToast({ type: "success", msg: `"${file.name}" uploaded successfully. Large PDFs take a few minutes to process — it'll show as "Processing" until it's ready.` });
       fetchDocuments();
     } catch (err) {
-      setToast({ type: "error", msg: err.response?.data?.message || "Upload failed." });
+      setToast({ type: "error", msg: getErrorMessage(err, { 400: "Please choose a valid PDF file." }) });
     } finally {
       setUploading(false);
     }
@@ -98,7 +99,7 @@ export default function DashboardPage() {
       if (selectedDocId === doc._id) setSelectedDocId(null);
       setToast({ type: "success", msg: `"${doc.fileName}" deleted.` });
     } catch (err) {
-      setToast({ type: "error", msg: err.message || "Couldn't delete file." });
+      setToast({ type: "error", msg: getErrorMessage(err) });
     }
   };
 
@@ -115,6 +116,14 @@ export default function DashboardPage() {
     setActiveToolId(tool.id);
     if (!selectedDoc) {
       setToast({ type: "warn", msg: "Select a document on the right, then pick a tool." });
+      return;
+    }
+    if (selectedDoc.status === "processing") {
+      setToast({ type: "warn", msg: `"${selectedDoc.fileName}" is still processing. This can take a few minutes for large PDFs — try again shortly.` });
+      return;
+    }
+    if (selectedDoc.status === "failed") {
+      setToast({ type: "error", msg: `"${selectedDoc.fileName}" failed to process. Try deleting and re-uploading it.` });
       return;
     }
     if(tool.id === 'chat') {
@@ -322,6 +331,17 @@ export default function DashboardPage() {
                           <div className="flex-1 min-w-0">
                             <p className="font-syne font-semibold text-[14px] text-navy truncate" title={doc.fileName}>{doc.fileName}</p>
                             <p className="font-inter text-[11px] text-slate-400 mt-0.5">{formatDate(doc.createdAt)}</p>
+                            {doc.status === "processing" && (
+                              <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-100 text-amber-700 font-inter text-[10.5px] font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                Processing…
+                              </span>
+                            )}
+                            {doc.status === "failed" && (
+                              <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-red-50 border border-red-100 text-red-600 font-inter text-[10.5px] font-medium">
+                                ⚠️ Processing failed
+                              </span>
+                            )}
                           </div>
                           {selected && <span className="text-blue text-base shrink-0">✓</span>}
                         </div>

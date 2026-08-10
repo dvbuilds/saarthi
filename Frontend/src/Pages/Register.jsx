@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../utils/getErrorMessage.js";
+import { isValidEmail, validatePasswordStrength } from "../utils/validation.js";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ fullName: "", email: "", password: "", confirm: "" });
@@ -23,11 +24,12 @@ export default function RegisterPage() {
   const handleSubmit = async () => {
     if (!form.fullName || !form.email || !form.password || !form.confirm) { setError("Please fill in all fields."); return; }
 
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(form.email)) { setError("Please enter a valid email address."); return; }
+    if (!isValidEmail(form.email)) { setError("Please enter a valid email address."); return; }
 
     if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
-    if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
+
+    const passwordError = validatePasswordStrength(form.password);
+    if (passwordError) { setError(passwordError); return; }
 
     setLoading(true); setError("");
     try {

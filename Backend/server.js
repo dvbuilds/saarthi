@@ -91,6 +91,13 @@ const startServer = async () => {
         res.end(await metricsRegistry.metrics());
     });
 
+    // Any request that didn't match a route above — return JSON, not
+    // Express's default HTML "Cannot GET /x" page, so a typo'd/stale
+    // frontend API call still surfaces something the UI can parse.
+    app.use((req, res) => {
+        res.status(404).json({ message: "Not found." });
+    });
+
     // Centralized JSON error handler — catches multer file-filter/limit
     // errors (e.g. non-PDF uploads) and any other errors passed to next(err),
     // so the client always gets a friendly JSON message instead of Express's
@@ -102,8 +109,14 @@ const startServer = async () => {
             return res.status(400).json({ message: err.message });
         }
 
+        // Anything else reaching here is an error that fell through every
+        // route-level try/catch — genuinely unexpected. Log the full error
+        // for debugging. Only forward err.message to the client when the
+        // error was explicitly marked safe (err.expose = true, e.g. the
+        // upload file-type check) — arbitrary library/runtime messages
+        // (stack-trace-adjacent text, file paths, etc.) never reach the user.
         req.log?.error({ err }, "Unhandled request error") ?? logger.error({ err }, "Unhandled request error");
-        return res.status(400).json({ message: err.message || "Something went wrong. Please try again." });
+        return res.status(err.status || 500).json({ message: err.expose ? err.message : "Something went wrong. Please try again." });
     });
 
     app.listen(process.env.PORT, () => {

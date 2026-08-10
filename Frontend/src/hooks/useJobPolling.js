@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import API from '../services/api';
+import { getErrorMessage } from '../utils/getErrorMessage.js';
 
 const POLL_INTERVAL = 2500;
 const MAX_POLL_TIME = 5 * 60 * 1000; // 5 min safety cutoff — avoids polling forever if a job gets stuck
@@ -57,7 +58,7 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
             }
         } catch (err) {
             if (!cancelledRef.current) {
-                setError(err.response?.data?.message || "Couldn't check generation status.");
+                setError(getErrorMessage(err, { 404: "Couldn't check generation status." }));
                 setLoading(false);
             }
         }
@@ -84,7 +85,7 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
             poll(jobId, Date.now());
         } catch (err) {
             if (!cancelledRef.current) {
-                setError(err.response?.data?.message || err.message || "Failed to start generation.");
+                setError(getErrorMessage(err, { 400: "Failed to start generation." }));
                 setLoading(false);
             }
         }

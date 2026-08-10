@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import API from "../services/api.js";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
+import { isValidEmail } from "../utils/validation.js";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -11,6 +13,12 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    if (!isValidEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -19,7 +27,7 @@ export default function ForgotPasswordPage() {
       // account exists, so we show the confirmation screen either way.
       setSubmitted(true);
     } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong. Please try again.");
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

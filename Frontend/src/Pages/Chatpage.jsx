@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 // ── icons ────────────────────────────────────────────────────────────────────
 const SendIcon = () => (
@@ -146,7 +147,7 @@ export default function ChatPage() {
                     setMessages([GREETING_MESSAGE]);
                 }
             } catch (err) {
-                setError(err.response?.data?.message || err.message || "Failed to load document");
+                setError(getErrorMessage(err, { 404: "This document couldn't be found." }));
             } finally {
                 setLoading(false);
             }
@@ -183,7 +184,7 @@ export default function ChatPage() {
             const reply = res.data.reply || res.data.message || "No response.";
             setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
         } catch (err) {
-            const errMsg = err.response?.data?.message || err.message || "Something went wrong.";
+            const errMsg = getErrorMessage(err, { 400: "This document is still processing — try again shortly." });
             setMessages((prev) => [
                 ...prev,
                 { role: "assistant", content: `⚠️ ${errMsg}` },
