@@ -120,5 +120,5 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [startUrl]);
 
-    return { result, loading, error, progress, start, cancel };
+    return { result, loading, error, progress, start, cancel, jobId: jobIdRef.current };
 }

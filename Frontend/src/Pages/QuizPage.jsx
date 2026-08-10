@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useJobPolling } from "../hooks/useJobPolling.js";
+import API from "../services/api.js";
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -71,11 +72,17 @@ function CountSelector({ onStart, loading }) {
 }
 
 // ── Quiz Screen ───────────────────────────────────────────────────────────────
-function QuizScreen({ questions, onFinish }) {
+// Correctness now comes from the server (POST /jobs/:jobId/quiz-answer),
+// never from the client-side question data — the answer key was stripped
+// from `questions` on the backend, so q.answer/q.explanation no longer
+// exist here at all.
+function QuizScreen({ questions, jobId, onFinish }) {
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [confirmed, setConfirmed] = useState(false);
+  const [feedback, setFeedback] = useState(null); // { correct, correctAnswer, explanation }
+  const [submitting, setSubmitting] = useState(false);
 
   const q = questions[current];
   const total = questions.length;
@@ -111,17 +118,32 @@ function QuizScreen({ questions, onFinish }) {
     setSelected(letter);
   };
 
-  const handleConfirm = () => {
-    if (!selected) return;
-    setConfirmed(true);
+  const handleConfirm = async () => {
+    if (!selected || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await API.post(`/jobs/${jobId}/quiz-answer`, {
+        questionIndex: current,
+        selectedAnswer: selected,
+      });
+      setFeedback(res.data);
+      setConfirmed(true);
+    } catch (err) {
+      // Degrade gracefully rather than getting stuck — student still sees
+      // *something*, just without a confirmed correct answer highlighted.
+      setFeedback({ correct: false, correctAnswer: null, explanation: "Couldn't check this answer right now." });
+      setConfirmed(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleNext = () => {
     const newAnswers = [...answers, {
       question: q.question,
       selected,
-      correct: q.answer,
-      explanation: q.explanation,
+      correct: feedback?.correctAnswer,
+      explanation: feedback?.explanation,
       options: q.options,
     }];
     setAnswers(newAnswers);
@@ -132,10 +154,11 @@ function QuizScreen({ questions, onFinish }) {
       setCurrent(c => c + 1);
       setSelected(null);
       setConfirmed(false);
+      setFeedback(null);
     }
   };
 
-  const isCorrect = selected === q.answer;
+  const isCorrect = feedback?.correct;
 
   return (
     <div className="min-h-screen bg-offwhite dot-bg px-4 py-10">
@@ -166,8 +189,8 @@ function QuizScreen({ questions, onFinish }) {
             {q.options.map((opt) => {
               const letter = opt.charAt(0);
               const isSelected = selected === letter;
-              const isCorrectOpt = confirmed && letter === q.answer;
-              const isWrongOpt = confirmed && isSelected && letter !== q.answer;
+              const isCorrectOpt = confirmed && letter === feedback?.correctAnswer;
+              const isWrongOpt = confirmed && isSelected && letter !== feedback?.correctAnswer;
 
               return (
                 <button
@@ -201,9 +224,9 @@ function QuizScreen({ questions, onFinish }) {
         {confirmed && (
           <div className={`rounded-2xl px-6 py-4 mb-5 border ${isCorrect ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
             <p className={`font-syne font-bold text-[13px] mb-1 ${isCorrect ? "text-green-700" : "text-red-700"}`}>
-              {isCorrect ? "✅ Correct!" : `❌ Wrong — Correct answer is ${q.answer}`}
+              {isCorrect ? "✅ Correct!" : `❌ Wrong — Correct answer is ${feedback?.correctAnswer ?? "unavailable"}`}
             </p>
-            <p className="font-inter text-[13.5px] text-slate-700 leading-relaxed">{q.explanation}</p>
+            <p className="font-inter text-[13.5px] text-slate-700 leading-relaxed">{feedback?.explanation}</p>
           </div>
         )}
 
@@ -211,10 +234,10 @@ function QuizScreen({ questions, onFinish }) {
           {!confirmed ? (
             <button
               onClick={handleConfirm}
-              disabled={!selected}
+              disabled={!selected || submitting}
               className="flex-1 py-4 rounded-[12px] bg-gradient-to-br from-amber-400 to-amber-500 font-syne font-bold text-[15px] text-navy border-none cursor-pointer shadow-[0_4px_14px_rgba(245,158,11,0.25)] hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
             >
-              Confirm Answer
+              {submitting ? "Checking…" : "Confirm Answer"}
             </button>
           ) : (
             <button
@@ -232,6 +255,9 @@ function QuizScreen({ questions, onFinish }) {
 }
 
 // ── Results Screen ────────────────────────────────────────────────────────────
+// Unchanged — a.correct/a.explanation now originate from the server-graded
+// feedback instead of the (now-stripped) raw job data, but the shape
+// QuizScreen hands off is identical, so nothing here needs to change.
 function ResultsScreen({ answers, onRetry, onDashboard }) {
   const [expanded, setExpanded] = useState(null);
   const score = answers.filter(a => a.selected === a.correct).length;
@@ -339,7 +365,7 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState([]);
 
   // autoStart: false — generation only begins once the user picks a count and hits Generate
-  const { result, loading, error, start } = useJobPolling(`/quiz/${id}`, { autoStart: false });
+  const { result, loading, error, start, jobId } = useJobPolling(`/quiz/${id}`, { autoStart: false });
   const questions = result || [];
 
   const handleStart = async (count) => {
@@ -392,7 +418,7 @@ export default function QuizPage() {
       setStage("select");
       return null;
     }
-    return <QuizScreen questions={questions} onFinish={handleFinish} />;
+    return <QuizScreen questions={questions} jobId={jobId} onFinish={handleFinish} />;
   }
 
   if (stage === "results") {

@@ -16,12 +16,19 @@ export const getJobStatus = async (req, res) => {
             ? Math.round((job.completedChunks / job.totalChunks) * 100)
             : 0;
 
+        // Quiz answers/explanations never reach the client here — a student
+        // reading the raw network response shouldn't be able to see the
+        // answer key before answering. Correctness is checked server-side
+        // instead, via POST /:jobId/quiz-answer below.
+        let safeResult = job.result;
+        if (job.type === "quiz" && Array.isArray(job.result)) {
+            safeResult = job.result.map(({ question, options }) => ({ question, options }));
+        }
+
         return res.status(200).json({
             status: job.status,
             type: job.type,
-
-            result: job.result,
-
+            result: safeResult,
             completedChunks: job.completedChunks,
             totalChunks: job.totalChunks,
             progressPercent,
@@ -29,6 +36,49 @@ export const getJobStatus = async (req, res) => {
         });
     } catch (error) {
         return handleServerError(res, error, "Couldn't fetch job status.");
+    }
+}
+
+// Checks one answer against the real (server-only) answer key and reveals
+// correctness + explanation only after the student has actually answered.
+export const checkQuizAnswer = async (req, res) => {
+    try {
+        const { questionIndex, selectedAnswer } = req.body;
+
+        if (typeof questionIndex !== "number" || !selectedAnswer) {
+            return res.status(400).json({ message: "questionIndex and selectedAnswer are required" });
+        }
+
+        const job = await GenerationJob.findOne({
+            _id: req.params.jobId,
+            requestedBy: req.user._id,
+        });
+
+        if (!job) {
+            return res.status(404).json({ message: "Job not found" });
+        }
+
+        if (job.type !== "quiz") {
+            return res.status(400).json({ message: "This job is not a quiz" });
+        }
+
+        if (job.status !== "completed") {
+            return res.status(400).json({ message: "Quiz is not ready yet" });
+        }
+
+        const question = job.result?.[questionIndex];
+
+        if (!question) {
+            return res.status(404).json({ message: "Question not found" });
+        }
+
+        return res.status(200).json({
+            correct: question.answer === selectedAnswer,
+            correctAnswer: question.answer,
+            explanation: question.explanation,
+        });
+    } catch (error) {
+        return handleServerError(res, error, "Couldn't check your answer. Please try again.");
     }
 }
 
