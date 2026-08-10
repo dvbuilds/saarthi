@@ -1,5 +1,4 @@
 import express from "express";
-import { getJobStatus, cancelJob } from "../controllers/jobController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 import { getJobStatus, cancelJob, checkQuizAnswer } from "../controllers/jobController.js";
 
