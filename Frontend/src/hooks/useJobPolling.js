@@ -18,7 +18,7 @@ export function useJobPolling(startUrl, { autoStart = true } = {}) {
         if (cancelledRef.current) return;
 
         if (Date.now() - startedAt > MAX_POLL_TIME) {
-            setError("This is taking longer than expected. Please try again.");
+            setError("This is taking longer time than expected. Please try again.");
             setLoading(false);
             return;
         }
