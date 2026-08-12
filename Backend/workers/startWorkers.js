@@ -8,10 +8,12 @@ import { extractPdfText } from "../services/extractPdfText.js";
 import { generateSectionTitles } from "../services/generateActionTitle.js";
 import { callGroqWithBreaker } from "../services/groqCircuitBreaker.js";
 import { setCachedResult } from "../services/aiOutputCache.js";
+import { publishGenerationEvent } from "../services/generationEvents.js";
 import { computeSelectionSignature } from "../utils/computeSelectionSignature.js";
 import { chunkPages, CHUNK_SIZE } from "../utils/chunking.js";
 import { logger } from "../utils/logger.js";
 import { generationJobsTotal, generationJobDuration } from "../utils/metrics.js";
+import { StreamingArrayParser } from "../utils/streamingJsonArrayParser.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -258,6 +260,7 @@ export const startWorkers = () => {
                     if (liveJob?.status === "cancelled") {
                         logger.info({ jobRecordId, chunksDone, totalChunks: chunks.length }, "Job cancelled mid-generation — stopping");
                         generationJobsTotal.labels(type, "cancelled").inc();
+                        publishGenerationEvent(jobRecordId, { type: "cancelled" });
                         return;
                     }
 
@@ -277,33 +280,71 @@ export const startWorkers = () => {
 
                             const prompt = buildPrompt(type, pdfContext, questionsPerChunk, contentType);
 
+                            // Collected as items complete, not just at the end — each
+                            // item is also published live over Redis the instant the
+                            // streaming parser closes it, so the frontend can render
+                            // it (one card/question/point/topic at a time) while the
+                            // model is still generating the rest. Quiz answers are
+                            // NOT stripped here — that stays the job of the API layer
+                            // (see sanitizeGenerationResult.js), same boundary as the
+                            // existing poll endpoint.
+                            const items = [];
+                            let parser;
+
                             try {
-                                const completion = await callGroqWithBreaker(() =>
-                                    groq.chat.completions.create({
+                                parser = new StreamingArrayParser((item) => {
+                                    items.push(item);
+                                    publishGenerationEvent(jobRecordId, { type: "item", item });
+                                });
+
+                                await callGroqWithBreaker(async () => {
+                                    const stream = await groq.chat.completions.create({
                                         model: "llama-3.1-8b-instant",
                                         messages: [{ role: "user", content: prompt }],
                                         max_tokens: 1024,
-                                    })
-                                );
+                                        stream: true,
+                                    });
 
-                                const raw = completion.choices[0].message.content;
-                                const clean = raw.replace(/```json|```/g, "").trim();
-                                return JSON.parse(clean);
+                                    for await (const part of stream) {
+                                        const delta = part.choices?.[0]?.delta?.content;
+                                        if (delta) parser.push(delta);
+                                    }
+                                });
+
+                                // The incremental parser only fires for items whose
+                                // closing bracket/quote actually arrived. If nothing
+                                // came through it (model wrapped the array in a way
+                                // the parser didn't expect), fall back to parsing
+                                // everything it buffered in one go — mirrors the old
+                                // non-streaming behavior instead of losing the chunk.
+                                if (items.length === 0 && parser.getBuffer().trim()) {
+                                    const clean = parser.getBuffer().replace(/```json|```/g, "").trim();
+                                    const parsed = JSON.parse(clean);
+                                    if (Array.isArray(parsed)) {
+                                        parsed.forEach((item) => {
+                                            items.push(item);
+                                            publishGenerationEvent(jobRecordId, { type: "item", item });
+                                        });
+                                    }
+                                }
                             } catch (chunkError) {
                                 // A genuinely open circuit (sustained Groq
                                 // outage) aborts the whole job — retrying
                                 // every remaining chunk against a known-dead
                                 // API just wastes time and produces a job
-                                // full of empty results. A one-off parse
-                                // error or single flaky call on an otherwise
-                                // healthy circuit stays swallowed to []
-                                // (existing behavior) so one bad chunk
-                                // doesn't sink the rest.
+                                // full of empty results.
                                 if (chunkError.isCircuitBreakerOpen) {
                                     throw chunkError;
                                 }
-                                return [];
+                                // Any other failure (mid-stream network drop,
+                                // unparsable fallback JSON, etc.) keeps
+                                // whatever items were already streamed and
+                                // published rather than discarding them —
+                                // the client already saw them appear, so the
+                                // stored/final result should agree.
                             }
+
+                            return items;
                         })
                     );
 
@@ -321,12 +362,23 @@ export const startWorkers = () => {
                         });
                     }
 
+                    publishGenerationEvent(jobRecordId, {
+                        type: "progress",
+                        completedChunks: Math.min(chunksDone, chunks.length),
+                        totalChunks: chunks.length,
+                    });
+
                     if (i + batchSize < chunks.length) {
                         await new Promise(resolve => setTimeout(resolve, 1200));
                     }
                 }
 
                 if (type === "quiz") {
+                    // Live "item" events were published in raw generation order as
+                    // each question streamed in — this shuffle+trim only affects
+                    // the authoritative final result. The frontend replaces its
+                    // streamed-in list with this "done" payload once it arrives,
+                    // exactly like it already does for the poll-based result.
                     allResults = allResults.sort(() => Math.random() - 0.5).slice(0, count || 10);
                 }
 
@@ -342,6 +394,8 @@ export const startWorkers = () => {
                 const selectionSignature = computeSelectionSignature(selectedChunkIndexes);
                 await setCachedResult(document.fileHash, type, selectionSignature, count, allResults);
 
+                publishGenerationEvent(jobRecordId, { type: "done", result: allResults });
+
                 logger.info({ jobRecordId, type }, "Generation job completed");
                 generationJobsTotal.labels(type, "completed").inc();
                 generationJobDuration.labels(type).observe((Date.now() - job.timestamp) / 1000);
@@ -355,10 +409,14 @@ export const startWorkers = () => {
                 if (isFinalAttempt) {
                     generationJobsTotal.labels(type, "failed").inc();
 
+                    const userFacingError = toUserFacingError(error);
+
                     await GenerationJob.findByIdAndUpdate(jobRecordId, {
                         status: "failed",
-                        error: toUserFacingError(error),
+                        error: userFacingError,
                     });
+
+                    publishGenerationEvent(jobRecordId, { type: "error", message: userFacingError });
 
                     try {
                         await DeadLetterJob.create({

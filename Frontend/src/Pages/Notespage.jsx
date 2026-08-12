@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useJobPolling } from "../hooks/useJobPolling.js";
+import { useGenerationStream } from "../hooks/useGenerationStream.js";
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -83,7 +83,7 @@ export default function NotesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { result, loading, error, progress } = useJobPolling(`/notes/${id}`);
+  const { result, loading, error, progress } = useGenerationStream(`/notes/${id}`);
   const notes = result || [];
   const isStillGenerating = loading && notes.length > 0;
 
@@ -124,8 +124,11 @@ export default function NotesPage() {
     );
   }
 
-  // ── Error ─────────────────────────────────────────────────────────────────
-  if (error) {
+  // ── Error (nothing generated yet) ───────────────────────────────────────────
+  // If some topics already streamed in before the error, we keep showing
+  // them in the main view below with an inline banner instead of
+  // discarding what already arrived — see the banner in the main render.
+  if (error && notes.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -193,6 +196,14 @@ export default function NotesPage() {
           </button>
         </div>
       </nav>
+
+      {error && notes.length > 0 && (
+        <div className="px-[5%] pt-4">
+          <div className="max-w-[720px] mx-auto bg-red-50 border border-red-200 text-red-700 font-inter text-[12.5px] px-4 py-2.5 rounded-xl text-center">
+            ⚠️ {error} — showing the {notes.length} topic{notes.length === 1 ? "" : "s"} generated so far.
+          </div>
+        </div>
+      )}
 
       <div className="px-[5%] pt-8 pb-4 text-center">
         <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-2xl mx-auto mb-3">✨</div>

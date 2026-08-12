@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useJobPolling } from "../hooks/useJobPolling.js";
+import { useGenerationStream } from "../hooks/useGenerationStream.js";
 import API from "../services/api.js";
 
 const BackIcon = () => (
@@ -16,11 +16,22 @@ const SpinnerIcon = () => (
 );
 
 // ── Count Selector Screen ─────────────────────────────────────────────────────
-function CountSelector({ onStart, loading }) {
+// While generating, this also renders a live, read-only preview of
+// questions as they stream in — one at a time, question text only (no
+// options/answers) — via `questions`/`progress`. The interactive
+// quiz-taking screen itself only opens once generation is fully done: the
+// backend shuffles and trims the question set right at completion (see
+// startWorkers.js) and answer grading is index-based against that final,
+// stable list — starting the quiz mid-shuffle would risk a student's
+// answered question silently pointing at a different one once the
+// generating list gets its final reorder. Streaming the preview here
+// keeps content appearing in real time without touching that guarantee.
+function CountSelector({ onStart, loading, questions, progress }) {
   const [count, setCount] = useState(10);
+  const streamedCount = questions.length;
 
   return (
-    <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4">
+    <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center px-4 py-10">
       <div className="bg-white rounded-3xl shadow-[0_20px_60px_rgba(10,22,40,0.10)] border border-slate-100 p-10 w-full max-w-[440px] text-center">
         <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center text-3xl mx-auto mb-6">📝</div>
         <h1 className="font-syne font-extrabold text-[26px] text-navy mb-2">Smart Quiz</h1>
@@ -28,36 +39,71 @@ function CountSelector({ onStart, loading }) {
           AI will generate MCQs from your document. Choose how many questions you want.
         </p>
 
-        <div className="mb-8">
-          <label className="block font-inter text-[13px] font-semibold text-slate-700 mb-3 text-left">
-            Number of questions
-          </label>
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            {[5, 10, 15, 20].map(n => (
-              <button
-                key={n}
-                onClick={() => setCount(n)}
-                className={`py-3 rounded-xl font-syne font-bold text-[15px] border-[1.5px] transition-all duration-200
-                  ${count === n
-                    ? "bg-amber-400 border-amber-400 text-navy shadow-[0_4px_14px_rgba(245,158,11,0.3)]"
-                    : "bg-white border-slate-200 text-slate-600 hover:border-amber-300"}`}
-              >
-                {n}
-              </button>
-            ))}
+        {!loading && (
+          <div className="mb-8">
+            <label className="block font-inter text-[13px] font-semibold text-slate-700 mb-3 text-left">
+              Number of questions
+            </label>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {[5, 10, 15, 20].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setCount(n)}
+                  className={`py-3 rounded-xl font-syne font-bold text-[15px] border-[1.5px] transition-all duration-200
+                    ${count === n
+                      ? "bg-amber-400 border-amber-400 text-navy shadow-[0_4px_14px_rgba(245,158,11,0.3)]"
+                      : "bg-white border-slate-200 text-slate-600 hover:border-amber-300"}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="font-inter text-[13px] text-slate-500 shrink-0">Custom:</label>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={count}
+                onChange={e => setCount(Math.min(30, Math.max(1, Number(e.target.value))))}
+                className="flex-1 px-4 py-2.5 rounded-xl border-[1.5px] border-slate-200 font-inter text-[14px] text-navy focus:outline-none focus:border-amber-400 transition-colors"
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <label className="font-inter text-[13px] text-slate-500 shrink-0">Custom:</label>
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={count}
-              onChange={e => setCount(Math.min(30, Math.max(1, Number(e.target.value))))}
-              className="flex-1 px-4 py-2.5 rounded-xl border-[1.5px] border-slate-200 font-inter text-[14px] text-navy focus:outline-none focus:border-amber-400 transition-colors"
-            />
+        )}
+
+        {loading && (
+          <div className="mb-8 text-left">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <SpinnerIcon />
+              <p className="font-inter text-[13px] text-slate-500">
+                {progress.total > 0
+                  ? `Processing section ${progress.completed} of ${progress.total}…`
+                  : "Warming up…"}
+              </p>
+            </div>
+
+            {streamedCount > 0 && (
+              <div className="max-h-[220px] overflow-y-auto flex flex-col gap-2 pr-1">
+                {questions.map((q, i) => (
+                  <div
+                    key={i}
+                    className="flex gap-2.5 items-start bg-amber-50/60 border border-amber-100 rounded-xl px-3.5 py-2.5"
+                  >
+                    <span className="w-5 h-5 rounded-full bg-amber-400 text-white flex items-center justify-center font-syne font-bold text-[10px] shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <p className="font-inter text-[12.5px] text-navy leading-snug line-clamp-2">{q.question}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="font-inter text-[12px] text-slate-400 text-center mt-3">
+              {streamedCount > 0 ? `${streamedCount} question${streamedCount === 1 ? "" : "s"} generated so far…` : "This can take a bit longer for larger documents"}
+            </p>
           </div>
-        </div>
+        )}
 
         <button
           onClick={() => onStart(count)}
@@ -365,7 +411,7 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState([]);
 
   // autoStart: false — generation only begins once the user picks a count and hits Generate
-  const { result, loading, error, start, jobId } = useJobPolling(`/quiz/${id}`, { autoStart: false });
+  const { result, loading, error, start, jobId, progress } = useGenerationStream(`/quiz/${id}`, { autoStart: false });
   const questions = result || [];
 
   const handleStart = async (count) => {
@@ -408,7 +454,7 @@ export default function QuizPage() {
             ⚠️ Couldn't generate quiz questions from this document — it may be too short or unreadable.
           </div>
         )}
-        <CountSelector onStart={handleStart} loading={loading} />
+        <CountSelector onStart={handleStart} loading={loading} questions={questions} progress={progress} />
       </>
     );
   }

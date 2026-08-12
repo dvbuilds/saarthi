@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useJobPolling } from "../hooks/useJobPolling.js";
+import { useGenerationStream } from "../hooks/useGenerationStream.js";
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -24,8 +24,12 @@ export default function SummaryPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { result, loading, error } = useJobPolling(`/summary/${id}`);
+  const { result, loading, error, progress } = useGenerationStream(`/summary/${id}`);
   const summary = result || [];
+  // True once at least one point has streamed in but more are still on
+  // the way — keeps the page on the main view (instead of the full-page
+  // spinner) so points appear as they're generated.
+  const isStillGenerating = loading && summary.length > 0;
 
   const [copied, setCopied] = useState(false);
 
@@ -36,21 +40,29 @@ export default function SummaryPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-  if (loading) {
+  // ── Loading (nothing generated yet) ─────────────────────────────────────────
+  // Only show the full-page spinner before the FIRST point lands. Once
+  // points start streaming in, we fall through to the main view below.
+  if (loading && summary.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="flex justify-center"><SpinnerIcon /></div>
           <p className="font-inter text-[14px] text-slate-500">Summarizing your document…</p>
-          <p className="font-inter text-[12px] text-slate-400">This can take a bit longer for larger documents</p>
+          <p className="font-inter text-[12px] text-slate-400">
+            {progress.total > 0
+              ? `Processing section ${progress.completed} of ${progress.total}…`
+              : "This can take a bit longer for larger documents"}
+          </p>
         </div>
       </div>
     );
   }
 
-  // ── Error ─────────────────────────────────────────────────────────────────
-  if (error) {
+  // ── Error (nothing generated yet) ───────────────────────────────────────────
+  // If some points already streamed in before the error, we keep showing
+  // them below with an inline banner instead of throwing the page away.
+  if (error && summary.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -93,9 +105,9 @@ export default function SummaryPage() {
           <BackIcon /> Dashboard
         </button>
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-50 border border-purple-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+          <span className={`w-1.5 h-1.5 rounded-full bg-purple-500 ${isStillGenerating ? "animate-pulse" : ""}`} />
           <span className="font-inter text-[12.5px] text-purple-700 font-medium">
-            {summary.length} key points
+            {isStillGenerating ? `${summary.length} so far…` : `${summary.length} key points`}
           </span>
         </div>
         <button
@@ -107,10 +119,29 @@ export default function SummaryPage() {
         </button>
       </nav>
 
+      {error && summary.length > 0 && (
+        <div className="px-[5%] pt-4">
+          <div className="max-w-[720px] mx-auto bg-red-50 border border-red-200 text-red-700 font-inter text-[12.5px] px-4 py-2.5 rounded-xl text-center">
+            ⚠️ {error} — showing the {summary.length} point{summary.length === 1 ? "" : "s"} generated so far.
+          </div>
+        </div>
+      )}
+
       <div className="px-[5%] pt-8 pb-6 text-center">
         <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-2xl mx-auto mb-3">📊</div>
         <h1 className="font-syne font-extrabold text-[24px] text-navy">Document Summary</h1>
         <p className="font-inter text-[13px] text-slate-500 mt-1">Key points extracted from your PDF</p>
+
+        {isStillGenerating && (
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <SpinnerIcon />
+            <p className="font-inter text-[12.5px] text-slate-400">
+              {progress.total > 0
+                ? `Still generating — section ${progress.completed} of ${progress.total}`
+                : "More points on the way…"}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="px-[5%] pb-12">

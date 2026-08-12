@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useJobPolling } from "../hooks/useJobPolling.js";
+import { useGenerationStream } from "../hooks/useGenerationStream.js";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const BackIcon = () => (
@@ -81,8 +81,12 @@ export default function FlashcardsPage() {
     ? sectionsParam.split(",").map(Number).filter((n) => !Number.isNaN(n))
     : undefined;
 
-  const { result, loading, error, progress, start, cancel } = useJobPolling(`/flashcards/${id}`, { autoStart: false });
+  const { result, loading, error, progress, start, cancel } = useGenerationStream(`/flashcards/${id}`, { autoStart: false });
   const flashcards = result || [];
+  // True once at least one card has streamed in but the rest are still on
+  // the way — used to keep the viewer up (instead of the full-page
+  // spinner) and to stop the user finishing the deck before it's complete.
+  const isStillGenerating = loading && flashcards.length > 0;
 
   useEffect(() => {
     start({ selectedChunkIndexes });
@@ -99,9 +103,11 @@ export default function FlashcardsPage() {
   const handleNext = () => {
     if (current < flashcards.length - 1) {
       setCurrent(c => c + 1);
-    } else {
+    } else if (!isStillGenerating) {
       setDone(true);
     }
+    // else: we're on the last card that's arrived so far, but more are
+    // still streaming in — wait rather than ending the deck early.
   };
 
   const handleRestart = () => {
@@ -109,8 +115,12 @@ export default function FlashcardsPage() {
     setDone(false);
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-  if (loading) {
+  // ── Loading (nothing generated yet) ─────────────────────────────────────────
+  // Only show the full-page spinner before the FIRST flashcard lands.
+  // Once cards start streaming in, we fall through to the main viewer below
+  // so the person can start reviewing right away instead of waiting for
+  // the whole deck.
+  if (loading && flashcards.length === 0) {
     const hasProgress = progress.total > 0;
     const percent = hasProgress ? Math.round((progress.completed / progress.total) * 100) : 0;
 
@@ -147,8 +157,12 @@ export default function FlashcardsPage() {
     );
   }
 
-  // ── Error ─────────────────────────────────────────────────────────────────
-  if (error) {
+  // ── Error (nothing generated yet) ───────────────────────────────────────────
+  // If some cards already streamed in before the error (e.g. a dropped
+  // connection partway through), we keep showing them in the main viewer
+  // below with an inline banner instead of throwing away what's already
+  // there — see the banner in the main render.
+  if (error && flashcards.length === 0) {
     return (
       <div className="min-h-screen bg-offwhite dot-bg flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -216,18 +230,28 @@ export default function FlashcardsPage() {
           <BackIcon /> Dashboard
         </button>
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-green-50 border border-green-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+          <span className={`w-1.5 h-1.5 rounded-full bg-green-500 ${isStillGenerating ? "animate-pulse" : ""}`} />
           <span className="font-inter text-[12.5px] text-green-700 font-medium">
-            {flashcards.length} flashcards
+            {isStillGenerating ? `${flashcards.length} so far…` : `${flashcards.length} flashcards`}
           </span>
         </div>
         <div className="w-20" />
       </nav>
 
+      {error && flashcards.length > 0 && (
+        <div className="px-[5%] pt-4">
+          <div className="max-w-[560px] mx-auto bg-red-50 border border-red-200 text-red-700 font-inter text-[12.5px] px-4 py-2.5 rounded-xl text-center">
+            ⚠️ {error} — showing the {flashcards.length} card{flashcards.length === 1 ? "" : "s"} generated so far.
+          </div>
+        </div>
+      )}
+
       <div className="px-[5%] pt-8 pb-6 text-center">
         <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center text-2xl mx-auto mb-3">🃏</div>
         <h1 className="font-syne font-extrabold text-[24px] text-navy">Flashcards</h1>
-        <p className="font-inter text-[13px] text-slate-500 mt-1">Tap a card to flip it</p>
+        <p className="font-inter text-[13px] text-slate-500 mt-1">
+          {isStillGenerating ? "More cards are on the way — tap to flip" : "Tap a card to flip it"}
+        </p>
       </div>
 
       <div className="px-[5%] mb-8">
@@ -258,9 +282,12 @@ export default function FlashcardsPage() {
           </button>
           <button
             onClick={handleNext}
-            className="flex-1 py-4 rounded-[12px] bg-gradient-to-br from-green-400 to-green-500 font-syne font-bold text-[15px] text-white border-none cursor-pointer shadow-[0_4px_14px_rgba(34,197,94,0.25)] hover:-translate-y-0.5 transition-all duration-200"
+            disabled={current === flashcards.length - 1 && isStillGenerating}
+            className="flex-1 py-4 rounded-[12px] bg-gradient-to-br from-green-400 to-green-500 font-syne font-bold text-[15px] text-white border-none cursor-pointer flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(34,197,94,0.25)] hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
           >
-            {current === flashcards.length - 1 ? "Finish 🎉" : "Next →"}
+            {current === flashcards.length - 1
+              ? (isStillGenerating ? <><SpinnerIcon />Generating more…</> : "Finish 🎉")
+              : "Next →"}
           </button>
         </div>
       </div>
