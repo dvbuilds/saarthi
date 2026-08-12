@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import API from "../services/api.js";
-import { validatePasswordStrength } from "../utils/validation.js";
+import { validatePasswordStrength, getPasswordChecklist } from "../utils/validation.js";
 import { getErrorMessage } from "../utils/getErrorMessage.js";
 
 export default function ResetPasswordPage() {
@@ -10,25 +10,24 @@ export default function ResetPasswordPage() {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+
+  const passwordChecklist = getPasswordChecklist(password);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (password !== confirmPassword) {
       setError("Passwords don't match.");
-      return;
-    }
-    const passwordError = validatePasswordStrength(password);
-    if (passwordError) {
-      setError(passwordError);
       return;
     }
 
@@ -73,11 +72,27 @@ export default function ResetPasswordPage() {
               <input
                 type="password"
                 required
-                placeholder="At least 8 characters"
+                placeholder="At least 8 characters, with a number & symbol"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="s-input mb-4"
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+                className="s-input mb-2"
               />
+              {(passwordFocused || password) && (
+                <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-1.5 px-1">
+                  {passwordChecklist.map(({ label, met }) => (
+                    <div key={label} className="flex items-center gap-1.5">
+                      <span className={`text-[11px] leading-none ${met ? "text-green-500" : "text-slate-300"}`}>
+                        {met ? "✓" : "○"}
+                      </span>
+                      <span className={`font-inter text-[11.5px] ${met ? "text-green-600" : "text-slate-400"}`}>
+                        {label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <label className="block font-inter text-[13px] font-semibold text-slate-700 mb-2">Confirm password</label>
               <input
                 type="password"

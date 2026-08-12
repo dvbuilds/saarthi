@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { handleServerError } from "../utils/handleServerError.js";
 import { generateAccessToken, generateRefreshToken, hashToken } from "../utils/generateTokens.js";
 import { sendResetPasswordEmail } from "../utils/sendEmail.js";
-import { isValidEmail, validatePasswordStrength } from "../utils/validators.js";
+import { isValidEmail, getEmailError, hasDeliverableDomain, validatePasswordStrength } from "../utils/validators.js";
 
 const accessTokenOptions = {
     httpOnly: true,
@@ -36,8 +36,12 @@ export const register = async (req, res) => {
             return res.status(400).json({ message: "Fill required fields" });
         }
 
-        if (!isValidEmail(email)) {
-            return res.status(400).json({ message: "Please enter a valid email address." });
+        // Full signup-time check: format + not a disposable/throwaway
+        // domain. (Login uses the lighter isValidEmail() instead — see
+        // that function's comment for why.)
+        const emailError = getEmailError(email);
+        if (emailError) {
+            return res.status(400).json({ message: emailError });
         }
 
         const passwordError = validatePasswordStrength(password);
@@ -48,6 +52,17 @@ export const register = async (req, res) => {
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(409).json({ message: "User already exists" });
+        }
+
+        // MX/A-record check — catches typo'd or made-up domains
+        // ("gmial.com") that pass format validation cleanly. Runs after
+        // the existing-user check so a duplicate-email attempt doesn't
+        // pay for a DNS round trip it doesn't need. Fails open (see
+        // hasDeliverableDomain's comment) so a DNS hiccup never blocks a
+        // real signup.
+        const deliverable = await hasDeliverableDomain(email);
+        if (!deliverable) {
+            return res.status(400).json({ message: "We couldn't verify that email domain. Please check for typos or use a different email address." });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);

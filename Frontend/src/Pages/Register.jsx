@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Link, useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../utils/getErrorMessage.js";
-import { isValidEmail, validatePasswordStrength } from "../utils/validation.js";
+import { getEmailError, validatePasswordStrength, getPasswordChecklist } from "../utils/validation.js";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ fullName: "", email: "", password: "", confirm: "" });
   const [showPass, setShowPass] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -19,12 +20,17 @@ export default function RegisterPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const passwordChecklist = getPasswordChecklist(form.password);
+
   const handleChange = e => { setForm({ ...form, [e.target.name]: e.target.value }); setError(""); };
 
   const handleSubmit = async () => {
     if (!form.fullName || !form.email || !form.password || !form.confirm) { setError("Please fill in all fields."); return; }
 
-    if (!isValidEmail(form.email)) { setError("Please enter a valid email address."); return; }
+    // Signup-specific check — also rejects disposable/throwaway domains,
+    // unlike the plain format check Login uses.
+    const emailError = getEmailError(form.email);
+    if (emailError) { setError(emailError); return; }
 
     if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
 
@@ -154,13 +160,31 @@ export default function RegisterPage() {
           <label className="block font-inter text-[13px] font-semibold text-slate-700 mb-2">Password</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base pointer-events-none select-none">🔑</span>
-            <input type={showPass ? "text" : "password"} name="password" placeholder="Min. 6 characters"
-              value={form.password} onChange={handleChange} className="s-input pr-12" />
+            <input type={showPass ? "text" : "password"} name="password" placeholder="Min. 8 characters, with a number & symbol"
+              value={form.password} onChange={handleChange}
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
+              className="s-input pr-12" />
             <button onClick={() => setShowPass(p => !p)}
               className="absolute right-4 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-base opacity-50 hover:opacity-80 transition-opacity p-0">
               {showPass ? "🙈" : "👁️"}
             </button>
           </div>
+
+          {(passwordFocused || form.password) && (
+            <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 px-1">
+              {passwordChecklist.map(({ label, met }) => (
+                <div key={label} className="flex items-center gap-1.5">
+                  <span className={`text-[11px] leading-none ${met ? "text-green-500" : "text-slate-300"}`}>
+                    {met ? "✓" : "○"}
+                  </span>
+                  <span className={`font-inter text-[11.5px] ${met ? "text-green-600" : "text-slate-400"}`}>
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Confirm */}
@@ -172,6 +196,9 @@ export default function RegisterPage() {
               value={form.confirm} onChange={handleChange}
               onKeyDown={e => e.key === "Enter" && handleSubmit()} className="s-input" />
           </div>
+          {form.confirm && form.password !== form.confirm && (
+            <p className="font-inter text-[11.5px] text-red-500 mt-1.5 px-1">Passwords don't match yet.</p>
+          )}
         </div>
 
         <button onClick={handleSubmit} disabled={loading || success}
