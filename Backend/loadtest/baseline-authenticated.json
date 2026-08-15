@@ -1,0 +1,16 @@
+{
+  "me": {
+    "latencyAvg": 684.92,
+    "requestsAvg": 6.8,
+    "errors": 0,
+    "timeouts": 0,
+    "non2xx": 0
+  },
+  "list-documents": {
+    "latencyAvg": 3909.75,
+    "requestsAvg": 0.8,
+    "errors": 0,
+    "timeouts": 0,
+    "non2xx": 0
+  }
+}

@@ -98,10 +98,12 @@ export const fetchAllDocuments = async (req, res) => {
     try {
         const documents = await Document.find({
             uploadedBy: req.user._id,
-        }).sort({ createdAt: -1 });
-
+        })
+            .select("-extractedText -sections")   // exclude the heavy fields
+            .sort({ createdAt: -1 });
         return res.status(200).json({ documents });
-    } catch (error) {
+    }
+    catch (error) {
         return handleServerError(res, error, "Couldn't load your documents. Please try again.");
     }
 }
