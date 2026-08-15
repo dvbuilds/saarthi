@@ -299,9 +299,10 @@ export const startWorkers = () => {
 
                                 await callGroqWithBreaker(async () => {
                                     const stream = await groq.chat.completions.create({
-                                        model: "llama-3.1-8b-instant",
+                                        model: "openai/gpt-oss-20b",
                                         messages: [{ role: "user", content: prompt }],
                                         max_tokens: 1024,
+                                        reasoning_effort: "low",   // these are structured extraction tasks, not multi-step reasoning — don't spend budget on it
                                         stream: true,
                                     });
 
