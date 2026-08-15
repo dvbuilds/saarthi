@@ -113,7 +113,7 @@ export const fetchDocumentById = async (req, res) => {
         const document = await Document.findOne({
             _id: req.params.id,
             uploadedBy: req.user._id,
-        });
+        }).select("-extractedText");
 
         if (!document) {
             return res.status(404).json({ message: "File Not Found" });

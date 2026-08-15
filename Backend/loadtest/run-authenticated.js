@@ -98,13 +98,25 @@ const run = async () => {
   const cookieHeader = await login();
   console.log("Login OK — cookies captured.\n");
 
+  // Set this to a real document _id from your account (grab one from the
+  // GET /api/upload response) — required for the two single-document
+  // targets below. Left as an env var so you're not hardcoding your own
+  // data into a script that might get committed.
+  const TEST_DOCUMENT_ID = process.env.TEST_DOCUMENT_ID;
+
   const TARGETS = [
     { name: "me", url: `${BASE_URL}/api/users/me`, headers: { cookie: cookieHeader } },
     { name: "list-documents", url: `${BASE_URL}/api/upload`, headers: { cookie: cookieHeader } },
-    // Add more read-only authenticated GET endpoints here as needed, e.g.
-    // a known document id:
-    // { name: "get-document", url: `${BASE_URL}/api/upload/<some-id>`, headers: { cookie: cookieHeader } },
   ];
+
+  if (TEST_DOCUMENT_ID) {
+    TARGETS.push(
+      { name: "get-document", url: `${BASE_URL}/api/upload/${TEST_DOCUMENT_ID}`, headers: { cookie: cookieHeader } },
+      { name: "get-document-sections", url: `${BASE_URL}/api/upload/${TEST_DOCUMENT_ID}/sections`, headers: { cookie: cookieHeader } },
+    );
+  } else {
+    console.log("TEST_DOCUMENT_ID not set — skipping get-document and get-document-sections targets.\n");
+  }
 
   console.log(`Load testing ${BASE_URL} — ${CONNECTIONS} connections, ${DURATION}s per endpoint\n`);
 

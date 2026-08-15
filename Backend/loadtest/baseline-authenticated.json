@@ -1,14 +1,28 @@
 {
   "me": {
-    "latencyAvg": 684.92,
-    "requestsAvg": 6.8,
+    "latencyAvg": 696.91,
+    "requestsAvg": 7.1,
     "errors": 0,
     "timeouts": 0,
     "non2xx": 0
   },
   "list-documents": {
-    "latencyAvg": 3909.75,
-    "requestsAvg": 0.8,
+    "latencyAvg": 1005.94,
+    "requestsAvg": 4.8,
+    "errors": 0,
+    "timeouts": 0,
+    "non2xx": 0
+  },
+  "get-document": {
+    "latencyAvg": 2607.53,
+    "requestsAvg": 1.7,
+    "errors": 0,
+    "timeouts": 0,
+    "non2xx": 0
+  },
+  "get-document-sections": {
+    "latencyAvg": 1006.96,
+    "requestsAvg": 4.7,
     "errors": 0,
     "timeouts": 0,
     "non2xx": 0
